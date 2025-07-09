@@ -5,13 +5,60 @@ export class RowSelectHandler implements EventHandler {
   private grid: Grid;
   private dragStartRow: number | null = null;
   private dragStartMouse: { x: number; y: number } | null = null;
-  private isRowHeaderDragActive: boolean = false; // Tracks if this handler is active
-  private rowHeaderDragged: boolean = false; // Tracks if actual dragging occurred
+  private isRowHeaderDragActive: boolean = false;
+  private rowHeaderDragged: boolean = false;
 
   private rowSelectionAnchor: number | null = null;
   private rowSelectionFocus: number | null = null;
 
+  private autoScrollDirection: 'up' | 'down' | null = null;
+  private autoScrollAnimationFrameId: number | null = null;
+  private lastPointerMoveEvent: MouseEvent | null = null;
+
   constructor(grid: Grid) { this.grid = grid; }
+
+  private stopAutoScroll(): void {
+    if (this.autoScrollAnimationFrameId !== null) {
+      cancelAnimationFrame(this.autoScrollAnimationFrameId);
+      this.autoScrollAnimationFrameId = null;
+    }
+    this.autoScrollDirection = null;
+  }
+
+  private scrollStep(): void {
+    if (!this.isRowHeaderDragActive || this.autoScrollDirection === null || !this.lastPointerMoveEvent) {
+      this.stopAutoScroll();
+      return;
+    }
+
+    const scrollAmount = 20; // Adjust for desired speed
+    const container = this.grid['container'];
+    const HEADER_SIZE = 40; // Column header height
+
+    if (this.autoScrollDirection === 'up') {
+      container.scrollTop = Math.max(0, container.scrollTop - scrollAmount);
+    } else if (this.autoScrollDirection === 'down') {
+      container.scrollTop = Math.min(container.scrollHeight - container.clientHeight, container.scrollTop + scrollAmount);
+    }
+
+    const { y: contentY } = this.grid['getMousePos'](this.lastPointerMoveEvent);
+    const { row: currentRowIndex } = this.grid['findRowByOffset'](contentY - HEADER_SIZE);
+    this.rowSelectionFocus = currentRowIndex;
+    this.grid['selMgr'].updateDrag(currentRowIndex, 0);
+
+    const startRow = Math.min(this.rowSelectionAnchor!, this.rowSelectionFocus!);
+    const endRow = Math.max(this.rowSelectionAnchor!, this.rowSelectionFocus!);
+    const selectedRows: number[] = [];
+    for (let r = startRow; r <= endRow; r++) selectedRows.push(r);
+    this.grid['selMgr'].setSelectedRows(selectedRows);
+    this.grid['scheduleRender']();
+
+    if (this.autoScrollDirection) {
+        this.autoScrollAnimationFrameId = requestAnimationFrame(this.scrollStep.bind(this));
+    } else {
+        this.autoScrollAnimationFrameId = null;
+    }
+  }
 
   hitTest(x: number, y: number): boolean {
     const HEADER_SIZE = 40;
@@ -65,15 +112,19 @@ export class RowSelectHandler implements EventHandler {
   }
 
   onPointerDrag(evt: MouseEvent): void {
-    if (!this.isRowHeaderDragActive || this.dragStartRow === null) return;
+    if (!this.isRowHeaderDragActive || this.dragStartRow === null) {
+      this.stopAutoScroll();
+      return;
+    }
+    this.lastPointerMoveEvent = evt;
 
     const { y: contentY } = this.grid['getMousePos'](evt);
-    const HEADER_SIZE = 40;
+    const HEADER_SIZE = 40; // Column header height
     const { row: currentRowIndex } = this.grid['findRowByOffset'](contentY - HEADER_SIZE);
 
     if (!this.grid['selMgr'].isDragging() && this.dragStartMouse) {
       const dy = Math.abs(evt.clientY - this.dragStartMouse.y);
-      if (dy > 2) { // Drag threshold
+      if (dy > 2) {
         this.grid['selMgr'].startDrag(this.dragStartRow, 0);
         this.grid['selMgr'].clearSelectedRows();
         this.grid['selMgr'].addSelectedRow(this.dragStartRow);
@@ -90,48 +141,52 @@ export class RowSelectHandler implements EventHandler {
       const selectedRows: number[] = [];
       for (let r = startRow; r <= endRow; r++) selectedRows.push(r);
       this.grid['selMgr'].setSelectedRows(selectedRows);
+      this.grid['scheduleRender']();
 
-      // Auto-scroll vertically
+      // Auto-scroll logic
       const rect = this.grid['canvas'].getBoundingClientRect();
       const mouseYCanvas = evt.clientY - rect.top;
-      const edgeThreshold = 25;
-      const scrollAmount = 10; // As in grid.ts
+      const edgeThreshold = 35;
       const clientHeight = this.grid['canvas'].clientHeight;
 
-      if (mouseYCanvas > clientHeight - edgeThreshold) {
-        this.grid['container'].scrollTop = Math.min(
-          this.grid['container'].scrollTop + scrollAmount,
-          this.grid['container'].scrollHeight - this.grid['container'].clientHeight
-        );
-      } else if (mouseYCanvas < edgeThreshold) {
-        this.grid['container'].scrollTop = Math.max(
-          this.grid['container'].scrollTop - scrollAmount,
-          0
-        );
+      let newScrollDirection: 'up' | 'down' | null = null;
+      if (mouseYCanvas > clientHeight - edgeThreshold && mouseYCanvas <= clientHeight) {
+        newScrollDirection = 'down';
+      } else if (mouseYCanvas < edgeThreshold && mouseYCanvas >= 0) {
+        newScrollDirection = 'up';
       }
-      this.grid['scheduleRender']();
+
+      if (newScrollDirection) {
+        this.autoScrollDirection = newScrollDirection;
+        if (this.autoScrollAnimationFrameId === null) {
+          this.scrollStep();
+        }
+      } else {
+        this.stopAutoScroll();
+      }
+    } else {
+      this.stopAutoScroll();
     }
   }
 
   onPointerUp(evt: MouseEvent): void {
+    this.stopAutoScroll();
+
     if (!this.isRowHeaderDragActive) return;
 
     if (!this.rowHeaderDragged && this.dragStartRow !== null) {
-      // Click without drag
       this.grid['selMgr'].selectRow(this.dragStartRow);
       this.grid['selMgr'].clearSelectedRows();
       this.grid['selMgr'].addSelectedRow(this.dragStartRow);
-       // pendingEditCell was already set on pointerDown
     } else if (this.grid['selMgr'].isDragging()) {
       this.grid['selMgr'].endDrag();
-      (this.grid as any).pendingEditCell = null; // Clear pending edit cell after drag
+      (this.grid as any).pendingEditCell = null;
     }
 
     this.grid['scheduleRender']();
     this.grid['computeSelectionStats']();
     this.grid['updateToolbarState']();
 
-    // Reset state for this handler
     this.isRowHeaderDragActive = false;
     this.rowHeaderDragged = false;
     this.dragStartRow = null;

@@ -13,10 +13,8 @@ export class SelectAllHandler implements EventHandler {
 
   hitTest(x: number, y: number): boolean {
     // Check if the pointer is within the top-left box
-    // Accessing grid['rowHeaderWidth'] as it's private in Grid.ts
-    // This will need to be addressed if rowHeaderWidth becomes dynamic based on row numbers
-    const rowHeaderWidth = (this.grid as any)['rowHeaderWidth'] || HEADER_SIZE;
-    return x >= 0 && x < rowHeaderWidth && y >= 0 && y < HEADER_SIZE;
+    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth();
+    return x >= 0 && x < currentGridRowHeaderWidth && y >= 0 && y < HEADER_SIZE;
   }
 
   onPointerDown(evt: MouseEvent): void {

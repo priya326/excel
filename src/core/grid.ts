@@ -545,6 +545,10 @@ export class Grid {
     this.cells.delete(ROWS - 1);
   }
 
+  public getRowHeaderWidth(): number {
+    return this.rowHeaderWidth;
+  }
+
   /**
    * Shift cells left
    * @param deleteAt - The column to delete at
@@ -2187,6 +2191,24 @@ export class Grid {
 
     const { firstRow, lastRow, firstCol, lastCol } = this.getVisibleRange();
 
+    // Calculate stable rowHeaderWidth for this render pass based on visible rows
+    let maxVisibleRowLabelWidth = 0;
+    if (lastRow >= firstRow) { // Ensure there's at least one row visible
+        // Temporarily set font for measurement if needed, assuming drawHeader sets it appropriately later.
+        // Or ensure ctx font is set to what drawHeader uses for row labels before this loop.
+        const currentFont = this.ctx.font; // Save current font
+        this.ctx.font = "14px Calibri, 'Segoe UI', sans-serif"; // Match drawHeader's row label font
+        for (let r = firstRow; r <= lastRow; r++) {
+            const label = (r + 1).toString();
+            maxVisibleRowLabelWidth = Math.max(maxVisibleRowLabelWidth, this.ctx.measureText(label).width);
+        }
+        this.ctx.font = currentFont; // Restore font
+    }
+    const ROW_HEADER_PADDING = 16;
+    const MIN_ROW_HEADER_WIDTH = 40;
+    this.rowHeaderWidth = Math.max(MIN_ROW_HEADER_WIDTH, maxVisibleRowLabelWidth + ROW_HEADER_PADDING);
+
+
     // Draw marching ants for formula range if active
     if (this.formulaRange) {
       const { startRow, startCol, endRow, endCol } = this.formulaRange;
@@ -2475,33 +2497,22 @@ export class Grid {
   ): void {
     const ctx = this.ctx;
     const label = isColumn ? this.columnName(index) : (index + 1).toString();
-    // Smoothly animate rowHeaderWidth to the desired width instead of snapping
-    if (!isColumn) {
-      const desiredWidth = ctx.measureText(label).width + 16;
-      const defaultWidth = 40;
-      const targetWidth = Math.max(desiredWidth, defaultWidth);
-      const step = 5; // change this to control speed
-
-      if (this.rowHeaderWidth < targetWidth) {
-        this.rowHeaderWidth = Math.min(this.rowHeaderWidth + step, targetWidth);
-      } else if (this.rowHeaderWidth > targetWidth) {
-        this.rowHeaderWidth = Math.max(this.rowHeaderWidth - step, targetWidth);
-      }
-    }
+    // this.rowHeaderWidth is now pre-calculated and stable for the render pass.
+    // Removed dynamic adjustment of this.rowHeaderWidth within drawHeader.
 
     const x = isColumn ? pos : 0;
     const y = isColumn ? 0 : pos;
-    let w = isColumn ? size : this.rowHeaderWidth;
+    let w = isColumn ? size : this.rowHeaderWidth; // For row headers, w is now the stable pre-calculated width
     const h = isColumn ? HEADER_SIZE : size;
     ctx.font = "14px Calibri, 'Segoe UI', sans-serif";
 
-    // Dynamically adjust row header width for large row numbers
-    if (!isColumn) {
-      const rowLabel = (index + 1).toString();
-      const textWidth = ctx.measureText(rowLabel).width;
-      const padding = 16;
-      w = Math.max(this.rowHeaderWidth, textWidth + padding);
-    }
+    // The following block is no longer needed as this.rowHeaderWidth is already the max for visible rows.
+    // if (!isColumn) {
+    //   const rowLabel = (index + 1).toString();
+    //   const textWidth = ctx.measureText(rowLabel).width;
+    //   const padding = 16;
+    //   w = Math.max(this.rowHeaderWidth, textWidth + padding);
+    // }
 
     // Get selection states
     const selectedCell = this.selMgr.getSelectedCell();

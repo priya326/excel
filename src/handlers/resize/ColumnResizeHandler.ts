@@ -18,16 +18,16 @@ export class ColumnResizeHandler extends HeaderResizeHandlerBase {
   protected getIndex(evt: MouseEvent): number {
     const { x: contentMouseX } = this.grid['getMousePos'](evt);
     // findColumnByOffset expects offset from the start of the column area (after row headers)
-    const rowHeaderAreaWidth = (this.grid as any).rowHeaderWidth;
-    const { col } = this.grid['findColumnByOffset'](contentMouseX - rowHeaderAreaWidth);
+    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth();
+    const { col } = this.grid['findColumnByOffset'](contentMouseX - currentGridRowHeaderWidth);
     return col;
   }
 
   protected getWithin(contentMouseX: number, contentMouseY: number): number {
     // contentMouseX is from getMousePos, relative to scrollable content origin.
     // findColumnByOffset expects offset from the start of the column area.
-    const rowHeaderAreaWidth = (this.grid as any).rowHeaderWidth;
-    const { col, within } = this.grid['findColumnByOffset'](contentMouseX - rowHeaderAreaWidth);
+    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth();
+    const { col, within } = this.grid['findColumnByOffset'](contentMouseX - currentGridRowHeaderWidth);
     return within;
   }
 
