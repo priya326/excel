@@ -6,19 +6,27 @@ import { CompositeCommand } from '../../commands/CompositeCommand';
 export class RowResizeHandler extends HeaderResizeHandlerBase {
   constructor(grid: Grid) { super(grid); }
 
-  hitTest(x: number, y: number): boolean { // x, y are canvas offsetX, offsetY
-    const HEADER_SIZE = 40; // Column header height
-    const RESIZE_GUTTER = 5;
+  hitTest(x: number, y: number, pointerType?: string): boolean { // x, y are canvas offsetX, offsetY
+    const COL_HEADER_HEIGHT = 40;
+    const MOUSE_RESIZE_GUTTER = 5;
+    const TOUCH_RESIZE_GUTTER = 20;
 
-    // Check if pointer is in the row header area (left of data cells, below column headers)
-    // x is canvas-relative, check against fixed row header width area.
-    // (this.grid as any).rowHeaderWidth is the actual width of the row number area.
-    if (x < (this.grid as any).rowHeaderWidth && y >= HEADER_SIZE) {
+    const effectiveResizeGutter = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+    const currentZoom = this.grid.getZoomLevel();
+    const logicalCanvasX = x / currentZoom;
+    const logicalCanvasY = y / currentZoom;
+
+    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth(); // Logical width
+
+    if (logicalCanvasX < currentGridRowHeaderWidth && logicalCanvasY >= COL_HEADER_HEIGHT) {
       // Convert canvas-relative y to content-relative y for findRowByOffset
-      // findRowByOffset expects offset from the start of the data rows (after col headers)
-      const contentRelativeY = y + this.grid['container'].scrollTop - HEADER_SIZE;
-      const { row, within } = this.grid['findRowByOffset'](contentRelativeY);
-      return within >= this.grid['rowMgr'].getHeight(row) - RESIZE_GUTTER;
+      const logicalMouseYOnCanvas = y / currentZoom;
+      const contentRelativeY = logicalMouseYOnCanvas + this.grid['container'].scrollTop - COL_HEADER_HEIGHT;
+      const { row, within } = this.grid['findRowByOffset'](contentRelativeY); // within is logical
+
+      // getHeight is logical. effectiveResizeGutter should be treated as logical.
+      return within >= this.grid['rowMgr'].getHeight(row) - (effectiveResizeGutter / currentZoom) &&
+             within <= this.grid['rowMgr'].getHeight(row) + (effectiveResizeGutter / (2 * currentZoom));
     }
     return false;
   }

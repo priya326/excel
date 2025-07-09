@@ -67,21 +67,29 @@ export class HeaderDragHandler implements EventHandler {
   }
 
   hitTest(x: number, y: number): boolean { // x, y are canvas offsetX, offsetY
-    const COL_HEADER_HEIGHT = 40; // Actual height of the column header bar
-    const RESIZE_GUTTER = 5;
-    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth();
+    const COL_HEADER_HEIGHT = 40; // Logical height
+    const MOUSE_RESIZE_GUTTER = 5; // Logical gutter for mouse
+    // For touch, ColumnResizeHandler uses a larger gutter. We want to make sure HeaderDragHandler
+    // doesn't activate if the touch is within that larger touch gutter for resizing.
+    const TOUCH_RESIZE_GUTTER = 20;
 
-    // Check if pointer is in the column header bar, to the right of row headers, and not in a resize gutter
-    if (y < COL_HEADER_HEIGHT && x >= currentGridRowHeaderWidth) {
-      // Convert canvas-relative x to content-relative x for findColumnByOffset
-      // findColumnByOffset expects offset from the start of the data columns (after row headers)
-      const contentRelativeX = x + this.grid['container'].scrollLeft - currentGridRowHeaderWidth;
-      const { col, within } = this.grid['findColumnByOffset'](contentRelativeX);
+    const currentZoom = this.grid.getZoomLevel();
+    const logicalCanvasX = x / currentZoom;
+    const logicalCanvasY = y / currentZoom;
 
-      // Check if it's not in the resize gutter of that column
-      // This check needs to be robust. The ColumnResizeHandler should have priority.
-      // This hitTest assumes ColumnResizeHandler.hitTest would have returned false.
-      if (within < this.grid['colMgr'].getWidth(col) - RESIZE_GUTTER) {
+    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth(); // Logical width
+
+    if (logicalCanvasY < COL_HEADER_HEIGHT && logicalCanvasX >= currentGridRowHeaderWidth) {
+      // We need contentRelativeX to use findColumnByOffset
+      const contentRelativeX = logicalCanvasX + this.grid['container'].scrollLeft - currentGridRowHeaderWidth;
+      const { col, within } = this.grid['findColumnByOffset'](contentRelativeX); // 'within' is logical
+
+      // Determine the effective resize gutter that ColumnResizeHandler would use
+      const effectiveResizeGutterForColumnHandler = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+      const logicalEffectiveResizeGutter = effectiveResizeGutterForColumnHandler / currentZoom;
+
+      // This handler should activate if NOT in the resize gutter zone ColumnResizeHandler would claim.
+      if (within < this.grid['colMgr'].getWidth(col) - logicalEffectiveResizeGutter) {
         return true;
       }
     }

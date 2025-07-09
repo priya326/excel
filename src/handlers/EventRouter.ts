@@ -10,8 +10,9 @@ export class EventRouter {
 
   onPointerDown(evt: MouseEvent) {
     const { x, y } = this.getEventPos(evt);
+    const pointerType = (evt as PointerEvent).pointerType;
     for (const handler of this.handlers) {
-      if (handler.hitTest(x, y)) {
+      if (handler.hitTest(x, y, pointerType)) {
         this.activeHandler = handler;
         handler.onPointerDown(evt);
         return;
@@ -22,10 +23,16 @@ export class EventRouter {
 
   onPointerMove(evt: MouseEvent) {
     const { x, y } = this.getEventPos(evt);
+    const pointerType = (evt as PointerEvent).pointerType;
+    // For onPointerMove (hover effects), we typically don't set an activeHandler,
+    // but allow multiple handlers to react if their hitTest passes (e.g., for cursor changes).
+    // However, the current loop returns after the first hit.
+    // For now, let's keep it simple and let the first handler that hits manage the pointer move.
+    // A more complex system might collect all hit handlers and let them all process onPointerMove.
     for (const handler of this.handlers) {
-      if (handler.hitTest(x, y)) {
+      if (handler.hitTest(x, y, pointerType)) {
         handler.onPointerMove(evt);
-        return;
+        return; // Return after first handler processes move, consistent with previous logic
       }
     }
   }

@@ -30,13 +30,16 @@ export abstract class HeaderResizeHandlerBase implements EventHandler {
     // Get content-relative mouse position once
     const { x: contentMouseX, y: contentMouseY } = this.grid['getMousePos'](evt);
 
-    const idx = this.getIndex(evt); // getIndex in derived classes should use getMousePos or be adjusted
-    // Pass content-relative coordinates to getWithin
+    const idx = this.getIndex(evt);
     const within = this.getWithin(contentMouseX, contentMouseY);
 
-    if (within >= this.getManager().getSize(idx) - this.getResizeGutter()) {
+    const MOUSE_RESIZE_GUTTER = this.getResizeGutter(); // Default gutter from derived class (e.g., 5)
+    const TOUCH_RESIZE_GUTTER = 20;
+    const effectiveResizeGutter = (evt as PointerEvent).pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+
+    if (within >= this.getManager().getSize(idx) - effectiveResizeGutter && within <= this.getManager().getSize(idx) + effectiveResizeGutter / 2) { // Check on both sides of the line
       this.resizingIdx = idx;
-      this.dragStartCoord = this.getDragStartCoord(evt); // This already uses getMousePos via derived classes after previous fix
+      this.dragStartCoord = this.getDragStartCoord(evt);
       this.originalSize = this.getManager().getSize(idx);
       this.isResizing = true;
       const selected = this.getSelected();
@@ -55,14 +58,15 @@ export abstract class HeaderResizeHandlerBase implements EventHandler {
   onPointerMove(evt: MouseEvent): void {
     this.grid['canvas'].style.cursor = 'cell'; // Default cursor if not over a gutter
 
-    // Get content-relative mouse position
     const { x: contentMouseX, y: contentMouseY } = this.grid['getMousePos'](evt);
-
-    const idx = this.getIndex(evt); // getIndex in derived classes already uses getMousePos
-    // Pass content-relative coordinates to getWithin
+    const idx = this.getIndex(evt);
     const within = this.getWithin(contentMouseX, contentMouseY);
 
-    if (within >= this.getManager().getSize(idx) - this.getResizeGutter()) {
+    const MOUSE_RESIZE_GUTTER = this.getResizeGutter(); // Default gutter from derived class
+    const TOUCH_RESIZE_GUTTER = 20;
+    const effectiveResizeGutter = (evt as PointerEvent).pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+
+    if (within >= this.getManager().getSize(idx) - effectiveResizeGutter && within <= this.getManager().getSize(idx) + effectiveResizeGutter / 2) {
       this.grid['canvas'].style.cursor = this.getCursor();
     }
   }

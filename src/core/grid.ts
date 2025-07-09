@@ -112,6 +112,7 @@ export class Grid {
 
   /** @type {number} The last render time. */
   private _lastRenderTime: number = 0;
+  private zoomLevel: number = 1.0;
   /**
    * Shifts cells to the right.
   /**
@@ -330,6 +331,19 @@ export class Grid {
       alignRightBtn.addEventListener("click", () =>
         this.applyAlignmentToSelection("right")
       );
+
+    const zoomInBtn = document.getElementById("zoomInBtn");
+    if (zoomInBtn) {
+      zoomInBtn.addEventListener("click", () => {
+        this.setZoom(this.zoomLevel + 0.1);
+      });
+    }
+    const zoomOutBtn = document.getElementById("zoomOutBtn");
+    if (zoomOutBtn) {
+      zoomOutBtn.addEventListener("click", () => {
+        this.setZoom(this.zoomLevel - 0.1);
+      });
+    }
   }
 
 
@@ -1439,20 +1453,36 @@ export class Grid {
       ) || 48;
 
     // Add HEADER_SIZE for the grid's own header row
-    const left = this.rowHeaderWidth + this.colMgr.getX(col) - scrollX;
-    const top =
-      headerHeight +
-      toolbarHeight +
-      HEADER_SIZE +
-      this.rowMgr.getY(row) -
-      scrollY;
+    const logicalCellX = this.colMgr.getX(col);
+    const logicalCellY = this.rowMgr.getY(row);
+    const logicalCellWidth = this.colMgr.getWidth(col);
+    const logicalCellHeight = this.rowMgr.getHeight(row);
+
+    // Calculate visual position and size by applying zoom and then adjusting for scroll and fixed headers
+    // The editor is a DOM element positioned relative to the viewport, but its logical position is tied to the grid cell.
+
+    // Position of the canvas top-left relative to viewport
+    const canvasRect = this.canvas.getBoundingClientRect();
+
+    // Visual position of the cell's top-left corner on the screen
+    const visualCellLeftScreen = (this.rowHeaderWidth + logicalCellX - scrollX) * this.zoomLevel + canvasRect.left;
+    const visualCellTopScreen = (HEADER_SIZE + logicalCellY - scrollY) * this.zoomLevel + canvasRect.top;
+
+    // Visual size of the cell on the screen
+    const visualCellWidthScreen = logicalCellWidth * this.zoomLevel;
+    const visualCellHeightScreen = logicalCellHeight * this.zoomLevel;
+
+    // Font size for the editor input
+    const baseFontSize = 14; // Assuming base font size is 14px
+    const zoomedFontSize = baseFontSize * this.zoomLevel;
+
 
     // Determine padding based on cell value (numeric = right-aligned)
-    let paddingLeft = "8px";
+    let paddingLeft = "8px"; // These are CSS padding values, might not need scaling or adjust based on visual size
     let paddingRight = "8px";
     const cell = this.getCellIfExists(row, col);
     if (cell && this.isNumericValue(cell.getValue())) {
-      paddingLeft = "0px";
+      paddingLeft = "0px"; // Potentially scale these if they are meant to be logical units
       paddingRight = "8px";
       this.editorInput.style.textAlign = "right";
     } else {
@@ -1461,19 +1491,29 @@ export class Grid {
       this.editorInput.style.textAlign = "left";
     }
 
+    // Calculate paddingTop to align text at the bottom, considering zoomed font size
+    // This is an approximation and might need fine-tuning.
+    // The goal is to have the text baseline appear similar to how it's rendered on canvas.
+    // `zoomedFontSize` is the visual size of the text. `visualCellHeightScreen` is the visual height of the editor.
+    // A simple approach: push text towards bottom by roughly (visualCellHeight - visualTextHeight)
+    // Assuming line-height is close to font-size.
+    const approxTextHeight = zoomedFontSize; // Approximation
+    let paddingTopValue = Math.max(0, visualCellHeightScreen - approxTextHeight - 2); // -2 for some buffer
+
     Object.assign(this.editorInput.style, {
-      left: `${left + 1}px`,
-      top: `${top + 1}px`,
-      width: `${this.colMgr.getWidth(col) - 3}px`,
-      height: `${this.rowMgr.getHeight(row) - 2}px`,
+      left: `${visualCellLeftScreen + (1 * this.zoomLevel)}px`, // Small offset scaled by zoom
+      top: `${visualCellTopScreen + (1 * this.zoomLevel)}px`,   // Small offset scaled by zoom
+      width: `${visualCellWidthScreen - (3 * this.zoomLevel)}px`, // Adjustments scaled by zoom
+      height: `${visualCellHeightScreen - (2 * this.zoomLevel)}px`,// Adjustments scaled by zoom
+      fontSize: `${zoomedFontSize}px`,
+      lineHeight: `${zoomedFontSize}px`, // Match font size for simplicity
       zIndex: "8",
       display: "block",
-      paddingLeft,
+      paddingLeft, // Padding might need to be re-evaluated with zoom
       paddingRight,
-      paddingTop: `${this.rowMgr.getHeight(row) - 22}px`, // Push text to bottom
+      paddingTop: `${paddingTopValue}px`,
       paddingBottom: "0px",
-      lineHeight: "16px", // match font size or desired line height
-      verticalAlign: "bottom", // optional, does nothing here
+      // verticalAlign: "bottom", // Does not apply well to input elements this way
     });
   }
 
@@ -1657,15 +1697,26 @@ export class Grid {
   private render(): void {
     const dpr = window.devicePixelRatio || 1;
     // Set canvas size in physical pixels for crisp lines
-    this.canvas.width = this.container.clientWidth * dpr;
-    this.canvas.height = this.container.clientHeight * dpr;
+    const physicalWidth = this.container.clientWidth * dpr;
+    const physicalHeight = this.container.clientHeight * dpr;
+    this.canvas.width = physicalWidth;
+    this.canvas.height = physicalHeight;
     this.canvas.style.width = this.container.clientWidth + "px";
     this.canvas.style.height = this.container.clientHeight + "px";
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0); // reset
-    this.ctx.scale(dpr, dpr);
+
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); // Clear with identity transform for full physical pixel clear
+
+    this.ctx.scale(dpr, dpr); // Apply DPR scaling first
+    this.ctx.scale(this.zoomLevel, this.zoomLevel); // Then apply zoom scaling
+
+    // Note: scrollX and scrollY are logical scroll values, not scaled by zoom here.
+    // getMousePos will handle unzooming mouse coordinates to match this logical space.
     const scrollX = this.container.scrollLeft;
     const scrollY = this.container.scrollTop;
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // The effective clearRect area in logical pixels (pre-zoom, post-dpr) would be:
+    // this.ctx.clearRect(0, 0, this.container.clientWidth / this.zoomLevel, this.container.clientHeight / this.zoomLevel);
+    // However, clearing before transformations is safer to ensure full canvas clear.
 
     // Draw the top-left box (intersection of row/col headers)
     const isTopLeftHovered = this._isTopLeftHovered || false;
@@ -2181,8 +2232,14 @@ export class Grid {
    */
   private getMousePos(evt: MouseEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
-    const x = evt.clientX - rect.left + this.container.scrollLeft;
-    const y = evt.clientY - rect.top + this.container.scrollTop;
+    // Adjust for canvas scaling (DPR is handled by canvas size, zoomLevel is explicit)
+    // rect.left and rect.top are viewport coordinates of the canvas top-left.
+    // evt.clientX and evt.clientY are viewport coordinates of the mouse.
+    // (evt.clientX - rect.left) gives mouse position relative to canvas element's visual top-left.
+    // Divide by zoomLevel to get logical units on the zoomed canvas.
+    // Then add scrollLeft/Top to get coordinates relative to the grid content's origin.
+    const x = ((evt.clientX - rect.left) / this.zoomLevel) + this.container.scrollLeft;
+    const y = ((evt.clientY - rect.top) / this.zoomLevel) + this.container.scrollTop;
     return { x, y };
   }
 
@@ -2673,4 +2730,11 @@ export class Grid {
   // private pasteRange: { startRow: number; startCol: number; endRow: number; endCol: number } | null = null;
 
   // Add this method to the class:
+  public setZoom(newZoomLevel: number): void {
+    // Basic clamping for zoom level, can be refined
+    this.zoomLevel = Math.max(0.25, Math.min(newZoomLevel, 4.0));
+    console.log("Zoom level set to:", this.zoomLevel);
+    // Later, this will need to trigger recalculations if necessary, beyond just rendering
+    this.scheduleRender();
+  }
 }

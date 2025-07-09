@@ -11,10 +11,15 @@ export class CellSelectHandler implements EventHandler {
     this.grid = grid;
   }
 
-  hitTest(x: number, y: number): boolean {
-    const HEADER_SIZE = 40;
-    // Ensures this handler only activates if the click is in the data area
-    return x >= HEADER_SIZE && y >= HEADER_SIZE;
+  hitTest(x: number, y: number, pointerType?: string): boolean { // x, y are canvas offsetX, offsetY
+    const COL_HEADER_HEIGHT = 40; // Logical height of column headers
+    const ROW_HEADER_WIDTH = this.grid.getRowHeaderWidth(); // Logical width of row headers
+    const currentZoom = this.grid.getZoomLevel();
+
+    const logicalCanvasX = x / currentZoom;
+    const logicalCanvasY = y / currentZoom;
+
+    return logicalCanvasX >= ROW_HEADER_WIDTH && logicalCanvasY >= COL_HEADER_HEIGHT;
   }
 
   onPointerDown(evt: MouseEvent): void {

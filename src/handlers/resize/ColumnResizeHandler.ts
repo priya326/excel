@@ -6,11 +6,29 @@ import { CompositeCommand } from '../../commands/CompositeCommand';
 export class ColumnResizeHandler extends HeaderResizeHandlerBase {
   constructor(grid: Grid) { super(grid); }
 
-  hitTest(x: number, y: number): boolean {
-    const HEADER_SIZE = 40, RESIZE_GUTTER = 5;
-    if (y < HEADER_SIZE && x >= HEADER_SIZE) {
-      const { col, within } = this.grid['findColumnByOffset'](x - HEADER_SIZE);
-      return within >= this.grid['colMgr'].getWidth(col) - RESIZE_GUTTER;
+  hitTest(x: number, y: number, pointerType?: string): boolean { // x,y are canvas offsetX, offsetY
+    const COL_HEADER_HEIGHT = 40; // Actual height of the column header bar
+    const MOUSE_RESIZE_GUTTER = 5;
+    const TOUCH_RESIZE_GUTTER = 20;
+
+    const effectiveResizeGutter = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+    const currentZoom = this.grid.getZoomLevel();
+    const logicalCanvasX = x / currentZoom;
+    const logicalCanvasY = y / currentZoom;
+
+    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth(); // Logical width
+
+    if (logicalCanvasY < COL_HEADER_HEIGHT && logicalCanvasX >= currentGridRowHeaderWidth) {
+      // Convert canvas-relative x to content-relative x for findColumnByOffset
+      // scrollLeft is logical, clientX - rect.left is physical pixels on canvas
+      const logicalMouseXOnCanvas = x / currentZoom;
+      const contentRelativeX = logicalMouseXOnCanvas + this.grid['container'].scrollLeft - currentGridRowHeaderWidth;
+
+      const { col, within } = this.grid['findColumnByOffset'](contentRelativeX); // within is logical
+
+      // getWidth is logical. effectiveResizeGutter should also be treated as logical here for comparison.
+      return within >= this.grid['colMgr'].getWidth(col) - (effectiveResizeGutter / currentZoom) &&
+             within <= this.grid['colMgr'].getWidth(col) + (effectiveResizeGutter / (2 * currentZoom));
     }
     return false;
   }

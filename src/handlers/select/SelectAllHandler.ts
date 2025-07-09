@@ -11,10 +11,15 @@ export class SelectAllHandler implements EventHandler {
     this.grid = grid;
   }
 
-  hitTest(x: number, y: number): boolean {
+  hitTest(x: number, y: number, pointerType?: string): boolean { // x, y are canvas offsetX, offsetY
     // Check if the pointer is within the top-left box
-    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth();
-    return x >= 0 && x < currentGridRowHeaderWidth && y >= 0 && y < HEADER_SIZE;
+    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth(); // Logical width
+    const currentZoom = this.grid.getZoomLevel();
+
+    const logicalX = x / currentZoom;
+    const logicalY = y / currentZoom;
+
+    return logicalX >= 0 && logicalX < currentGridRowHeaderWidth && logicalY >= 0 && logicalY < HEADER_SIZE;
   }
 
   onPointerDown(evt: MouseEvent): void {
