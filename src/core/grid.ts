@@ -21,12 +21,15 @@ import { InsertRowCommand } from "../commands/InsertRowCommand";
 import { DeleteRowCommand } from "../commands/DeleteRowCommand";
 import { InsertColumnCommand } from "../commands/InsertColumnCommand";
 import { DeleteColumnCommand } from "../commands/DeleteColumnCommand";
+// New Handler Imports
 import { EventRouter } from '../handlers/EventRouter';
 import { ColumnResizeHandler } from '../handlers/resize/ColumnResizeHandler';
 import { RowResizeHandler } from '../handlers/resize/RowResizeHandler';
-import { HeaderDragHandler } from '../handlers/drag/HeaderDragHandler';
-import { CellSelectHandler } from '../handlers/select/CellSelectHandler';
-import { RowSelectHandler } from '../handlers/select/RowSelectHandler';
+import { ColumnHeaderDragHandler } from '../handlers/drag/ColumnHeaderDragHandler'; // Corrected import
+import { RowHeaderDragHandler } from '../handlers/drag/RowHeaderDragHandler'; // Corrected import
+import { CellSelectionHandler } from '../handlers/select/CellSelectionHandler'; // Corrected import
+// Note: RowSelectHandler and HeaderDragHandler (generic) might be covered by the new specific handlers or need separate implementation if their logic is distinct.
+// For now, focusing on the five handlers created.
 
 
 /**
@@ -54,53 +57,51 @@ let dpr = window.devicePixelRatio || 1;
  */
 export class Grid {
   /** @type {HTMLCanvasElement} The canvas element for rendering the grid. */
-  private readonly canvas: HTMLCanvasElement;
+  public readonly canvas: HTMLCanvasElement; // Made public
   /** @type {CanvasRenderingContext2D} The 2D rendering context for the canvas. */
-  private readonly ctx: CanvasRenderingContext2D;
+  public readonly ctx: CanvasRenderingContext2D; // Made public
   /** @type {RowManager} Manages row heights and operations. */
   public readonly rowMgr: RowManager;
   /** @type {ColumnManager} Manages column widths and operations. */
   public readonly colMgr: ColumnManager;
   /** @type {SelectionManager} Manages selection state and drawing. */
-  private readonly selMgr: SelectionManager;
+  public readonly selMgr: SelectionManager; // Made public
   /**@type {number} Specifies the width of the row Header that changes based on the label */
-  private rowHeaderWidth: number = 40;
+  public rowHeaderWidth: number = 40; // Made public
   /** @type {Map} cells which are map of maps  */
   public cells: Map<number, Map<number, Cell>> = new Map();
   /** @type {HTMLInputElement|null} The input element for cell editing. */
-  private editorInput: HTMLInputElement | null = null;
+  private editorInput: HTMLInputElement | null = null; // Keep private, managed by start/finishEditing
   /** @type {{row: number, col: number}|null} The currently editing cell. */
-  private editingCell: { row: number; col: number } | null = null;
+  private editingCell: { row: number; col: number } | null = null; // Keep private, managed by start/finishEditing
   /** @type {HTMLElement} The scrollable container for the grid. */
-  private container: HTMLElement;
+  public container: HTMLElement; // Made public
   /** @type {boolean} Suppresses rendering during batch updates. */
   private suppressRender: boolean = false;
   /** @type {boolean} Whether a render is scheduled. */
   private renderScheduled: boolean = false;
-  /** @type {boolean} Whether the mouse is currently down for drag selection. */
-  private isMouseDown: boolean = false;
-  /** @type {boolean} Whether the mouse is currently dragging on column headers. */
-  private isColHeaderDrag: boolean = false;
-  /** @type {{row: number, col: number}|null} The cell where drag selection started. */
-  private dragStartCell: { row: number; col: number } | null = null;
-  /** @type {number|null} The column where column header drag started. */
-  private dragStartColHeader: number | null = null;
-  /** @type {{x: number, y: number}|null} The position where drag selection started. */
-  private dragStartMouse: { x: number; y: number } | null = null;
-  /** @type {number|null} The row being resized, if any. */
-  private resizingRow: number | null = null;
-  /** @type {number} The X position where a drag or resize started. */
-  private dragStartX: number = 0;
-  /** @type {number} The Y position where a drag or resize started. */
-  private dragStartY: number = 0;
-  /** @type {number} The original size (width/height) before resizing. */
-  private originalSize: number = 0;
-  private commandManager: CommandManager = new CommandManager();
-  // Add these properties to track resize operations
-  /** @type {any} command for resizing */
-  private currentResizeCommand: any = null;
-  /** @type {boolean} determines if resizing is currently happenning or not */
-  private isResizing: boolean = false;
+
+  // ---- State properties moved to individual handlers ----
+  // private isMouseDown: boolean = false;
+  // private isColHeaderDrag: boolean = false;
+  // private dragStartCell: { row: number; col: number } | null = null;
+  // private dragStartColHeader: number | null = null;
+  // private dragStartMouse: { x: number; y: number } | null = null;
+  // private resizingRow: number | null = null;
+  // private dragStartX: number = 0;
+  // private dragStartY: number = 0;
+  // private originalSize: number = 0;
+  // private currentResizeCommand: any = null; // Specific resize commands are in handlers
+  // private isResizing: boolean = false;
+  // private resizingCol: number | null = null;
+  // private _colHeaderDragHasDragged: boolean = false;
+  // private isRowHeaderDrag: boolean = false;
+  // private dragStartRowHeader: number | null = null;
+  // private _rowHeaderDragHasDragged: boolean = false;
+  // ---- End of moved state properties ----
+
+  public commandManager: CommandManager = new CommandManager(); // Made public
+
   /** @type {number} the offest used in marching ants */
   private dashOffset: number = 0;
   /** @type {{startRow:number, startCol: number, endRow: number, endCol: number}|null} hold the range of data for whose calculations are to be made*/
@@ -113,66 +114,39 @@ export class Grid {
   /** @type {number|null} id of the animation returned by requestAnimationFrame */
   private animationId: number | null = null;
   /** @type {Cell|null} saves the current cell which is being edited */
-  private editingCellInstance: Cell | null = null;
-
-  /** @type {number|null} The column being resized, if any. */
-  private resizingCol: number | null = null;
-
-  // Helper flag to track if header drag has moved
-  /** @type {boolean} Whether the column header drag has moved. */
-  private _colHeaderDragHasDragged: boolean = false;
-
-  /** @type {boolean} Whether the mouse is currently dragging on row headers. */
-  private isRowHeaderDrag: boolean = false;
-  /** @type {number|null} The row where row header drag started. */
-  private dragStartRowHeader: number | null = null;
-  // Helper flag to track if row header drag has moved
-  /** @type {boolean} Whether the row header drag has moved. */
-  private _rowHeaderDragHasDragged: boolean = false;
+  private editingCellInstance: Cell | null = null; // Keep private
 
   // Track hover state for top-left box
   /** @type {boolean} Whether the top-left box is hovered. */
-  private _isTopLeftHovered: boolean = false;
+  private _isTopLeftHovered: boolean = false; // Keep private, managed by Grid.render and EventRouter potentially
 
   /** @type {string[][]|null} The clipboard data. */
-  private clipboard: string[][] | null = null;
+  private clipboard: string[][] | null = null; // Keep private, managed by copy/paste logic
 
   /** @type {number|null} The column selection anchor. */
-  private columnSelectionAnchor: number | null = null;
+  public columnSelectionAnchor: number | null = null; // Made public for handlers
   /** @type {number|null} The column selection focus. */
-  private columnSelectionFocus: number | null = null;
+  public columnSelectionFocus: number | null = null; // Made public for handlers
 
   /** @type {number|null} The row selection anchor. */
-  private rowSelectionAnchor: number | null = null;
+  public rowSelectionAnchor: number | null = null; // Made public for handlers
   /** @type {number|null} The row selection focus. */
-  private rowSelectionFocus: number | null = null;
+  public rowSelectionFocus: number | null = null; // Made public for handlers
 
   /** @type {number} The last render time. */
-  private _lastRenderTime: number = 0;
-  /**
-   * Shifts cells to the right.
-  /**
-   * Throttles the schedule render.
-   */
-  // private throttledScheduleRender(): void {
-  //   const now = performance.now();
-  //   if (now - this._lastRenderTime > 16) {
-  //     // ~60fps
-  //     this._lastRenderTime = now;
-  //     this.scheduleRender();
-  //   }
-  // }
+  private _lastRenderTime: number = 0; // Keep private
 
   // Add this property to the class:
   /** @type {{row: number, col: number}|null} The pending edit cell. */
-  private pendingEditCell: { row: number; col: number } | null = null;
+  public pendingEditCell: { row: number; col: number } | null = null; // Made public for handlers
 
   private eventRouter: EventRouter;
-  private columnResizeHandler: ColumnResizeHandler;
-  private rowResizeHandler: RowResizeHandler;
-  private headerDragHandler: HeaderDragHandler;
-  private rowSelectHandler: RowSelectHandler;
-  private cellSelectHandler: CellSelectHandler;
+  // Instances of new handlers will be created in constructor
+  // private columnResizeHandler: ColumnResizeHandler; // Old, to be replaced
+  // private rowResizeHandler: RowResizeHandler; // Old, to be replaced
+  // private headerDragHandler: HeaderDragHandler; // Old, to be replaced
+  // private rowSelectHandler: RowSelectHandler; // Old, to be replaced
+  // private cellSelectHandler: CellSelectHandler; // Old, to be replaced
 
   /* ─────────────────────────────────────────────────────────────────── */
   /**
@@ -211,24 +185,29 @@ export class Grid {
 
     this.rowMgr = new RowManager(ROWS, DEFAULT_ROW_HEIGHT);
     this.colMgr = new ColumnManager(COLS, DEFAULT_COL_WIDTH);
-    this.selMgr = new SelectionManager();
+    this.selMgr = new SelectionManager(); // Already public due to previous change
     const virtualHeight = this.rowMgr.getTotalHeight();
     const virtualWidth = this.colMgr.getTotalWidth();
     filler.style.height = virtualHeight + "px";
     filler.style.width = virtualWidth + "px";
-    this.canvas.style.cursor = "cell"
-    this.columnResizeHandler = new ColumnResizeHandler(this);
-    this.rowResizeHandler = new RowResizeHandler(this);
-    this.headerDragHandler = new HeaderDragHandler(this);
-    this.rowSelectHandler = new RowSelectHandler(this);
-    this.cellSelectHandler = new CellSelectHandler(this);
+    this.canvas.style.cursor = "cell"; // Default cursor
+
+    // Instantiate new handlers
+    const colResizeHandler = new ColumnResizeHandler();
+    const rowResizeHandler = new RowResizeHandler();
+    const colHeaderDragHandler = new ColumnHeaderDragHandler();
+    const rowHeaderDragHandler = new RowHeaderDragHandler();
+    const cellSelectionHandler = new CellSelectionHandler();
+    // TODO: Instantiate other handlers like a top-left select-all handler if needed.
+
     this.eventRouter = new EventRouter([
-      this.columnResizeHandler,
-      this.rowResizeHandler,
-      this.headerDragHandler,
-      this.rowSelectHandler,
-      this.cellSelectHandler,
-    ]);
+      colResizeHandler,
+      rowResizeHandler,
+      colHeaderDragHandler,
+      rowHeaderDragHandler,
+      cellSelectionHandler,
+      // Add other handlers here
+    ], this); // Pass grid instance to EventRouter
 
     this.addEventListeners();
     this.resizeCanvas();
@@ -248,7 +227,7 @@ export class Grid {
     this.scheduleRender();
   }
 
-  private scheduleRender(): void {
+  public scheduleRender(): void { // Made public
     if (this.renderScheduled || this.suppressRender) return;
     this.renderScheduled = true;
     requestAnimationFrame(() => {
@@ -556,506 +535,66 @@ export class Grid {
   }
 
   /**
-   * Mouse down event handler
-   * @param evt - The mouse event
+   * Mouse down event handler - Now largely delegated to EventRouter
+   * @param evt - The mouse event (though not directly used anymore by this method)
    */
-  private onMouseDown(evt: MouseEvent): void {
-    // Finish editing if a cell is being edited before changing selection
-    if (this.editorInput && this.editingCell) {
-      this.finishEditing(true);
-    }
-    this.columnSelectionAnchor = null;
-    this.columnSelectionFocus = null;
-    this.rowSelectionAnchor = null;
-    this.rowSelectionFocus = null;
-    // Use event offset for header hit-testing so header resize works when scrolled
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = evt.clientX - rect.left;
-    const mouseY = evt.clientY - rect.top;
-    const { x, y } = this.getMousePos(evt);
-
-    /* 1 Column header area (top header bar) - resize and drag checks */
-    if (mouseY < HEADER_SIZE && mouseX >= HEADER_SIZE) {
-      const { col, within } = this.findColumnByOffset(x - HEADER_SIZE);
-      if (within >= this.colMgr.getWidth(col) - RESIZE_GUTTER) {
-        this.resizingCol = col;
-        this.dragStartX = evt.clientX;
-        this.originalSize = this.colMgr.getWidth(col);
-        this.isResizing = true;
-        // Composite command for multi-column resize
-        const selectedCols = this.selMgr.getSelectedColumns();
-        if (selectedCols.length > 1 && selectedCols.includes(col)) {
-          const commands = selectedCols.map(
-            (c) =>
-              new ResizeColumnCommand(
-                this,
-                c,
-                this.colMgr.getWidth(c),
-                this.colMgr.getWidth(c)
-              )
-          );
-          this.currentResizeCommand = new CompositeCommand(commands);
-        } else {
-          this.currentResizeCommand = new ResizeColumnCommand(
-            this,
-            this.resizingCol,
-            this.originalSize,
-            this.originalSize
-          );
-        }
-        this.ctx.strokeStyle = "#107C41";
-        this.ctx.lineWidth = 2 / window.devicePixelRatio;
-        return;
-      }
-      // --- Multi-column drag selection start ---
-      const { col: colIndex } = this.findColumnByOffset(x - HEADER_SIZE);
-      this.isColHeaderDrag = true;
-      this.isMouseDown = true;
-      this.dragStartColHeader = colIndex;
-      // Set anchor and focus for mouse drag
-      this.columnSelectionAnchor = colIndex;
-      this.columnSelectionFocus = colIndex;
-      this.pendingEditCell = { row: 0, col: colIndex };
-      this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
-      this._colHeaderDragHasDragged = false; // helper flag
-      // Clear any existing row selections when starting column selection
-      this.selMgr.clearSelectedRows();
-      // Do NOT select yet; wait for mouseup or drag
-      return;
-    }
-
-    /* 2 Row header area (left header bar) - resize and drag checks */
-    if (mouseX < HEADER_SIZE && mouseY >= HEADER_SIZE) {
-      const { row, within } = this.findRowByOffset(y - HEADER_SIZE);
-      if (within >= this.rowMgr.getHeight(row) - RESIZE_GUTTER) {
-        this.resizingRow = row;
-        this.dragStartY = evt.clientY;
-        this.originalSize = this.rowMgr.getHeight(row);
-        this.isResizing = true;
-        // Composite command for multi-row resize
-        const selectedRows = this.selMgr.getSelectedRows();
-        if (selectedRows.length > 1 && selectedRows.includes(row)) {
-          const commands = selectedRows.map(
-            (r) =>
-              new ResizeRowCommand(
-                this,
-                r,
-                this.rowMgr.getHeight(r),
-                this.rowMgr.getHeight(r)
-              )
-          );
-          this.currentResizeCommand = new CompositeCommand(commands);
-        } else {
-          this.currentResizeCommand = new ResizeRowCommand(
-            this,
-            this.resizingRow,
-            this.originalSize,
-            this.originalSize
-          );
-        }
-        return;
-      }
-      // --- Multi-row drag selection start ---
-      this.isRowHeaderDrag = true;
-      this.isMouseDown = true;
-      this.dragStartRowHeader = row;
-      // Set anchor and focus for mouse drag
-      this.rowSelectionAnchor = row;
-      this.rowSelectionFocus = row;
-      this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
-      this._rowHeaderDragHasDragged = false;
-      this.pendingEditCell = { row: row, col: 0 };
-      // Clear any existing column selections when starting row selection
-      this.selMgr.clearSelectedColumns();
-      // Do NOT select yet; wait for mouseup or drag
-      return;
-    }
-
-    /* 3 Data area (including row 0) – start drag selection (or single cell) */
-    if (mouseX >= HEADER_SIZE && mouseY >= HEADER_SIZE) {
-      const { col } = this.findColumnByOffset(x - HEADER_SIZE);
-      const { row } = this.findRowByOffset(y - HEADER_SIZE);
-      if (evt.button === 0) {
-        // left click
-        // Clear any existing column/row selections when clicking in data area
-        this.selMgr.clearSelectedColumns();
-        this.selMgr.clearSelectedRows();
-
-        // Select cell immediately
-        this.selMgr.selectCell(row, col);
-        // this.scrollToCell(row, col);
-        this.scheduleRender();
-        // Prepare for possible drag selection
-        this.isMouseDown = true;
-        this.isColHeaderDrag = false;
-        this.isRowHeaderDrag = false;
-        this.dragStartCell = { row, col };
-        this.pendingEditCell = { row, col }; // Only set for data area
-        this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
-      }
-    }
-
-    this.computeSelectionStats();
-    this.updateToolbarState();
+  private onMouseDown(evt: MouseEvent): void { // eslint-disable-line @typescript-eslint/no-unused-vars
+    // All substantive logic has been moved to individual handlers via EventRouter.
+    // This method is kept for now in case other parts of the system might call it,
+    // or if a very generic mousedown action (not tied to a specific operation) is needed.
+    // For pointer events, EventRouter.onPointerDown is the entry point.
+    // console.log("Grid.onMouseDown called - should be handled by EventRouter");
   }
 
   /**
    * Double click event handler
    * @param evt - The mouse event
    */
-  private onDoubleClick(evt: MouseEvent): void {
+  public onDoubleClick(evt: MouseEvent): void { // Made public
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = evt.clientX - rect.left;
     const mouseY = evt.clientY - rect.top;
-    if (mouseX < HEADER_SIZE || mouseY < HEADER_SIZE) return;
+    // Ensure click is not on headers for cell editing
+    if (mouseX < this.rowHeaderWidth || mouseY < HEADER_SIZE) return;
+
     const { x, y } = this.getMousePos(evt);
-    const { col } = this.findColumnByOffset(x - HEADER_SIZE);
+    const { col } = this.findColumnByOffset(x - this.rowHeaderWidth);
     const { row } = this.findRowByOffset(y - HEADER_SIZE);
+
     this.pendingEditCell = { row, col };
     this.startEditingCell(row, col);
   }
 
   /**
-   * Mouse move event handler
-   * @param evt - The mouse event
+   * Mouse move event handler - Now largely delegated to EventRouter
+   * @param evt - The mouse event (though not directly used anymore by this method)
    */
-  private onMouseMove(evt: MouseEvent): void {
-    // Use event offset for header hit-testing so header resize works when scrolled
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = evt.clientX - rect.left;
-    const mouseY = evt.clientY - rect.top;
-    const { x, y } = this.getMousePos(evt);
-
-    /* Cursor feedback for resize */
-    this.canvas.style.cursor = "cell";
-    if (mouseY < HEADER_SIZE && mouseX >= HEADER_SIZE) {
-      const { col, within } = this.findColumnByOffset(x - HEADER_SIZE);
-      if (within >= this.colMgr.getWidth(col) - RESIZE_GUTTER) {
-        this.canvas.style.cursor = "col-resize";
-      } else {
-        this.canvas.style.cursor = "grab";
-      }
-    } else if (mouseX < HEADER_SIZE && mouseY >= HEADER_SIZE) {
-      const { row, within } = this.findRowByOffset(y - HEADER_SIZE);
-      if (within >= this.rowMgr.getHeight(row) - RESIZE_GUTTER) {
-        this.canvas.style.cursor = "row-resize";
-      } else {
-        this.canvas.style.cursor = "grab";
-      }
-    }
-
-    // --- Multi-column drag selection update (highest priority) ---
-    if (
-      this.isColHeaderDrag &&
-      this.isMouseDown &&
-      this.dragStartColHeader !== null
-    ) {
-      if (!this.selMgr.isDragging() && this.dragStartMouse) {
-        const dx = Math.abs(evt.clientX - this.dragStartMouse.x);
-        if (dx > 2) {
-          // threshold in pixels
-          this.selMgr.startDrag(0, this.dragStartColHeader);
-          this._colHeaderDragHasDragged = true;
-          // Clear previous selected columns and add the starting column
-          this.selMgr.clearSelectedColumns();
-          this.selMgr.addSelectedColumn(this.dragStartColHeader);
-        }
-      }
-      if (this.selMgr.isDragging()) {
-        const { col } = this.findColumnByOffset(x - HEADER_SIZE);
-        this.selMgr.updateDrag(0, col);
-        // Update selected columns array based on drag range
-        const startCol = Math.min(this.dragStartColHeader!, col);
-        const endCol = Math.max(this.dragStartColHeader!, col);
-        const selectedCols: number[] = [];
-        for (let c = startCol; c <= endCol; c++) {
-          selectedCols.push(c);
-        }
-        // Auto-scroll horizontally if mouse is near left or right edge during column header drag
-        const edgeThreshold = 25; // px from edge to start auto-scroll
-        const scrollAmount = 40; // px to scroll per event
-
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = evt.clientX - rect.left; // relative to canvas
-
-        const clientWidth = this.canvas.clientWidth; // FIX: use width not height
-
-        if (mouseX > clientWidth - edgeThreshold) {
-          // Near right edge → scroll right
-          this.container.scrollLeft = Math.min(
-            this.container.scrollLeft + scrollAmount,
-            this.container.scrollWidth - this.container.clientWidth
-          );
-        } else if (mouseX < edgeThreshold) {
-          // Near left edge → scroll left
-          this.container.scrollLeft = Math.max(
-            this.container.scrollLeft - scrollAmount,
-            0
-          );
-        }
-        const maxScrollLeft =
-          this.container.scrollWidth - this.container.clientWidth;
-        if (
-          mouseX > clientWidth - edgeThreshold &&
-          this.container.scrollLeft < maxScrollLeft
-        ) {
-          this.container.scrollLeft = Math.min(
-            this.container.scrollLeft + scrollAmount,
-            maxScrollLeft
-          );
-        } else if (mouseX < edgeThreshold && this.container.scrollLeft > 0) {
-          this.container.scrollLeft = Math.max(
-            this.container.scrollLeft - scrollAmount,
-            0
-          );
-        }
-
-        // // Scroll to the last visible column in the drag range
-        // const lastVisibleCol = Math.max(startCol, endCol);
-        // this.scrollToCell(0, lastVisibleCol);
-        this.selMgr.setSelectedColumns(selectedCols);
-        //this.throttledScheduleRender();
-        this.scheduleRender();
-      }
-      return;
-    }
-
-    // --- Multi-row drag selection update (second priority) ---
-    if (
-      this.isRowHeaderDrag &&
-      this.isMouseDown &&
-      this.dragStartRowHeader !== null
-    ) {
-      if (!this.selMgr.isDragging() && this.dragStartMouse) {
-        const dy = Math.abs(evt.clientY - this.dragStartMouse.y);
-        if (dy > 2) {
-          // threshold in pixels
-          this.selMgr.startDrag(this.dragStartRowHeader, 0);
-          this._rowHeaderDragHasDragged = true;
-          this.selMgr.clearSelectedRows();
-          this.selMgr.addSelectedRow(this.dragStartRowHeader);
-        }
-      }
-      if (this.selMgr.isDragging()) {
-        const { row } = this.findRowByOffset(y - HEADER_SIZE);
-        this.selMgr.updateDrag(row, 0);
-        const startRow = Math.min(this.dragStartRowHeader!, row);
-        const endRow = Math.max(this.dragStartRowHeader!, row);
-        const selectedRows: number[] = [];
-        for (let r = startRow; r <= endRow; r++) {
-          selectedRows.push(r);
-        }
-        const edgeThreshold = 25; // px from edge to start auto-scroll
-        const scrollAmount = 10; // px to scroll per event
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseY = evt.clientY - rect.top;
-        const clientHeight = this.canvas.clientHeight;
-        if (mouseY > clientHeight - edgeThreshold) {
-          this.container.scrollTop = Math.min(
-            this.container.scrollTop + scrollAmount,
-            this.container.scrollHeight - this.container.clientHeight
-          );
-        } else if (mouseY < edgeThreshold) {
-          this.container.scrollTop = Math.max(
-            this.container.scrollTop - scrollAmount,
-            0
-          );
-        }
-        this.selMgr.setSelectedRows(selectedRows);
-        this.scheduleRender();
-        //this.throttledScheduleRender();
-      }
-      return;
-    }
-
-    /* Drag‑to‑select update (cells) - lowest priority */
-    if (
-      this.isMouseDown &&
-      this.dragStartCell &&
-      !this.isColHeaderDrag &&
-      !this.isRowHeaderDrag &&
-      x >= HEADER_SIZE &&
-      y >= HEADER_SIZE
-    ) {
-      // If not already dragging, check if mouse moved enough to start drag
-      if (!this.selMgr.isDragging() && this.dragStartMouse) {
-        const dx = Math.abs(evt.clientX - this.dragStartMouse.x);
-        const dy = Math.abs(evt.clientY - this.dragStartMouse.y);
-        if (dx > 2 || dy > 2) {
-          // threshold in pixels
-          this.selMgr.startDrag(this.dragStartCell.row, this.dragStartCell.col);
-        }
-      }
-      if (this.selMgr.isDragging()) {
-        const { col } = this.findColumnByOffset(x - HEADER_SIZE);
-        const { row } = this.findRowByOffset(y - HEADER_SIZE);
-        this.selMgr.updateDrag(row, col);
-
-        this.scrollToCell(row, col);
-        this.scheduleRender();
-        //this.throttledScheduleRender();
-      }
-    }
+  private onMouseMove(evt: MouseEvent): void { // eslint-disable-line @typescript-eslint/no-unused-vars
+    // All substantive logic has been moved to individual handlers via EventRouter.
+    // Hover effects (like cursor changes) are handled by EventRouter delegating to
+    // individual handlers' `updateCursor` or similar methods.
+    // console.log("Grid.onMouseMove called - should be handled by EventRouter");
   }
 
 
 
   /**
-   * Mouse drag event handler
-   * @param evt - The mouse event
+   * Mouse drag event handler - Now largely delegated to EventRouter
+   * @param evt - The mouse event (though not directly used anymore by this method)
    */
-  private onMouseDrag(evt: MouseEvent): void {
-    /* Column resize */
-    if (
-      this.resizingCol !== null &&
-      this.isResizing &&
-      this.currentResizeCommand
-    ) {
-      const dx = evt.clientX - this.dragStartX;
-      const newW = Math.max(40, this.originalSize + dx);
-      // If multiple columns are selected, resize all
-      const selectedCols = this.selMgr.getSelectedColumns();
-      if (
-        selectedCols.length > 1 &&
-        selectedCols.includes(this.resizingCol) &&
-        this.currentResizeCommand instanceof CompositeCommand
-      ) {
-        // Update all commands in the composite
-        for (let i = 0; i < selectedCols.length; i++) {
-          this.colMgr.setWidth(selectedCols[i], newW);
-          const cmd = this.currentResizeCommand.commands[i];
-          if (
-            "updateNewSize" in cmd &&
-            typeof cmd.updateNewSize === "function"
-          ) {
-            cmd.updateNewSize(newW);
-          }
-        }
-      } else {
-        this.colMgr.setWidth(this.resizingCol, newW);
-        this.currentResizeCommand.updateNewSize(newW);
-      }
-      this.updateEditorPosition();
-      //this.throttledScheduleRender();
-      this.scheduleRender();
-    }
-    /* Row resize */
-    if (
-      this.resizingRow !== null &&
-      this.isResizing &&
-      this.currentResizeCommand
-    ) {
-      const dy = evt.clientY - this.dragStartY;
-      const newH = Math.max(20, this.originalSize + dy);
-      const selectedRows = this.selMgr.getSelectedRows();
-      if (
-        selectedRows.length > 1 &&
-        selectedRows.includes(this.resizingRow) &&
-        this.currentResizeCommand instanceof CompositeCommand
-      ) {
-        for (let i = 0; i < selectedRows.length; i++) {
-          this.rowMgr.setHeight(selectedRows[i], newH);
-          const cmd = this.currentResizeCommand.commands[i];
-          if (
-            "updateNewSize" in cmd &&
-            typeof cmd.updateNewSize === "function"
-          ) {
-            cmd.updateNewSize(newH);
-          }
-        }
-      } else {
-        this.rowMgr.setHeight(this.resizingRow, newH);
-        this.currentResizeCommand.updateNewSize(newH);
-      }
-      this.updateEditorPosition();
-      //this.throttledScheduleRender();
-      this.scheduleRender();
-    }
+  private onMouseDrag(evt: MouseEvent): void { // eslint-disable-line @typescript-eslint/no-unused-vars
+    // All substantive logic has been moved to individual handlers via EventRouter.
+    // Dragging operations are handled by the active handler's `onPointerDrag`.
+    // console.log("Grid.onMouseDrag called - should be handled by EventRouter");
   }
 
   /**
-   * Mouse up event handler
+   * Mouse up event handler - Now largely delegated to EventRouter
    */
   private onMouseUp(): void {
-    // Execute the resize command if we were resizing
-    if (this.isResizing && this.currentResizeCommand) {
-      this.commandManager.execute(this.currentResizeCommand);
-      this.currentResizeCommand = null;
-      this.isResizing = false;
-    }
-
-    this.resizingCol = null;
-    this.resizingRow = null;
-    // --- Multi-column drag selection end ---
-    if (this.isColHeaderDrag) {
-      // If not dragged, treat as single column selection
-      if (!this._colHeaderDragHasDragged && this.dragStartColHeader !== null) {
-        this.selMgr.selectColumn(this.dragStartColHeader);
-        this.pendingEditCell = { row: 0, col: this.dragStartColHeader };
-        this.selMgr.clearSelectedColumns();
-        this.selMgr.addSelectedColumn(this.dragStartColHeader);
-        this.scheduleRender();
-      } else if (this.selMgr.isDragging()) {
-        this.selMgr.endDrag();
-        this.scheduleRender();
-      }
-      this.isColHeaderDrag = false;
-      this.isMouseDown = false;
-      this.dragStartColHeader = null;
-      this.dragStartMouse = null;
-      this._colHeaderDragHasDragged = false;
-      this.computeSelectionStats();
-      this.updateToolbarState();
-      this.columnSelectionAnchor = null;
-      this.columnSelectionFocus = null;
-      this.rowSelectionAnchor = null;
-      this.rowSelectionFocus = null;
-      return;
-    }
-    // --- Multi-row drag selection end ---
-    if (this.isRowHeaderDrag) {
-      // If not dragged, treat as single row selection
-      if (!this._rowHeaderDragHasDragged && this.dragStartRowHeader !== null) {
-        this.selMgr.selectRow(this.dragStartRowHeader);
-        this.selMgr.clearSelectedRows();
-        this.selMgr.addSelectedRow(this.dragStartRowHeader);
-        this.scheduleRender();
-      } else if (this.selMgr.isDragging()) {
-        this.selMgr.endDrag();
-        this.scheduleRender();
-      }
-      this.isRowHeaderDrag = false;
-      this.isMouseDown = false;
-      this.dragStartRowHeader = null;
-      this.dragStartMouse = null;
-      this._rowHeaderDragHasDragged = false;
-      this.computeSelectionStats();
-      this.updateToolbarState();
-      this.columnSelectionAnchor = null;
-      this.columnSelectionFocus = null;
-      this.rowSelectionAnchor = null;
-      this.rowSelectionFocus = null;
-      return;
-    }
-    this.isMouseDown = false;
-    this.dragStartCell = null;
-    this.dragStartMouse = null;
-
-    // Finalize drag selection if we were dragging
-    if (this.selMgr.isDragging()) {
-      this.selMgr.endDrag();
-      this.scheduleRender();
-      // If a drag rectangle exists and covers more than one cell, set pendingEditCell
-
-      // Only update toolbar and stats once, here
-      this.computeSelectionStats();
-      this.updateToolbarState();
-      // Reset anchor/focus
-      this.columnSelectionAnchor = null;
-      this.columnSelectionFocus = null;
-      this.rowSelectionAnchor = null;
-      this.rowSelectionFocus = null;
-    }
+    // All substantive logic has been moved to individual handlers via EventRouter.
+    // The active handler's `onPointerUp` is called by the EventRouter.
+    // console.log("Grid.onMouseUp called - should be handled by EventRouter");
   }
   /**
    * Key down event handler
@@ -1547,6 +1086,12 @@ export class Grid {
       );
     }
   }
+
+  // Public method to check if editing
+  public isEditing(): boolean {
+    return !!this.editingCell && !!this.editorInput;
+  }
+
   /**
    * Creates an input element
    */
@@ -1758,7 +1303,7 @@ export class Grid {
    * @param row The row index
    * @param col The column index
    */
-  private scrollToCell(row: number, col: number): void {
+  public scrollToCell(row: number, col: number): void { // Made public
     const cellX = this.colMgr.getX(col);
     const cellY = this.rowMgr.getY(row);
     const cellWidth = this.colMgr.getWidth(col);
@@ -1897,7 +1442,7 @@ export class Grid {
   /**
    * Updates the editor position
    */
-  private updateEditorPosition(): void {
+  public updateEditorPosition(): void { // Made public
     if (!this.editingCell || !this.editorInput) return;
 
     const { row, col } = this.editingCell;
@@ -1958,7 +1503,7 @@ export class Grid {
    * Finishes editing a cell
    * @param commit - Whether to commit the changes
    */
-  private finishEditing(commit: boolean): void {
+  public finishEditing(commit: boolean): void { // Made public
     // console.log("finishEditing called", commit, this.editingCell, this.editorInput);
     if (!this.editorInput || !this.editingCell || !this.editingCellInstance)
       return;
@@ -2645,11 +2190,11 @@ export class Grid {
   }
 
   /**
-   * Gets the mouse position.
+   * Gets the mouse position relative to the entire scrollable grid area.
    * @param evt the mouse event
-   * @returns the mouse position
+   * @returns the mouse position (x, y) including scroll offsets.
    */
-  private getMousePos(evt: MouseEvent): { x: number; y: number } {
+  public getMousePos(evt: MouseEvent): { x: number; y: number } { // Made public
     const rect = this.canvas.getBoundingClientRect();
     const x = evt.clientX - rect.left + this.container.scrollLeft;
     const y = evt.clientY - rect.top + this.container.scrollTop;
@@ -2657,39 +2202,39 @@ export class Grid {
   }
 
   /**
-   * Finds a column by offset.
-   * @param offsetX the offset of the column
-   * @returns the column and the within value
+   * Finds a column by offset relative to the data (scrollable) part of the grid.
+   * @param offsetX the offset X from the start of the data columns.
+   * @returns the column index and the pixel distance within that column.
    */
-  private findColumnByOffset(offsetX: number): { col: number; within: number } {
+  public findColumnByOffset(offsetX: number): { col: number; within: number } { // Made public
     let x = 0;
-    for (let c = 0; c < COLS; c++) {
+    for (let c = 0; c < COLS; c++) { // COLS should ideally come from this.colMgr.getTotalColumns()
       const w = this.colMgr.getWidth(c);
       if (offsetX < x + w) return { col: c, within: offsetX - x };
       x += w;
     }
-    return { col: COLS - 1, within: 0 };
+    return { col: COLS - 1, within: 0 }; // Or this.colMgr.getTotalColumns() - 1
   }
 
   /**
-   * Finds a row by offset.
-   * @param offsetY the offset of the row
-   * @returns the row and the within value
+   * Finds a row by offset relative to the data (scrollable) part of the grid.
+   * @param offsetY the offset Y from the start of the data rows.
+   * @returns the row index and the pixel distance within that row.
    */
-  private findRowByOffset(offsetY: number): { row: number; within: number } {
+  public findRowByOffset(offsetY: number): { row: number; within: number } { // Made public
     let y = 0;
-    for (let r = 0; r < ROWS; r++) {
+    for (let r = 0; r < ROWS; r++) { // ROWS should ideally come from this.rowMgr.getTotalRows()
       const h = this.rowMgr.getHeight(r);
       if (offsetY < y + h) return { row: r, within: offsetY - y };
       y += h;
     }
-    return { row: ROWS - 1, within: 0 };
+    return { row: ROWS - 1, within: 0 }; // Or this.rowMgr.getTotalRows() - 1
   }
 
   /**
    * Computes the selection stats.
    */
-  private computeSelectionStats(): void {
+  public computeSelectionStats(): void { // Made public
 
 
     // Whole row selection
@@ -2951,7 +2496,7 @@ export class Grid {
   /**
    * Updates the toolbar state.
    */
-  private updateToolbarState(): void {
+  public updateToolbarState(): void { // Made public
     const selectedCells = this.getSelectedCells();
     if (selectedCells.length === 0) {
       // Reset toolbar to default state
