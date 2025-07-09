@@ -6,10 +6,18 @@ import { CompositeCommand } from '../../commands/CompositeCommand';
 export class RowResizeHandler extends HeaderResizeHandlerBase {
   constructor(grid: Grid) { super(grid); }
 
-  hitTest(x: number, y: number): boolean {
-    const HEADER_SIZE = 40, RESIZE_GUTTER = 5;
-    if (x < HEADER_SIZE && y >= HEADER_SIZE) {
-      const { row, within } = this.grid['findRowByOffset'](y - HEADER_SIZE);
+  hitTest(x: number, y: number): boolean { // x, y are canvas offsetX, offsetY
+    const HEADER_SIZE = 40; // Column header height
+    const RESIZE_GUTTER = 5;
+
+    // Check if pointer is in the row header area (left of data cells, below column headers)
+    // x is canvas-relative, check against fixed row header width area.
+    // (this.grid as any).rowHeaderWidth is the actual width of the row number area.
+    if (x < (this.grid as any).rowHeaderWidth && y >= HEADER_SIZE) {
+      // Convert canvas-relative y to content-relative y for findRowByOffset
+      // findRowByOffset expects offset from the start of the data rows (after col headers)
+      const contentRelativeY = y + this.grid['container'].scrollTop - HEADER_SIZE;
+      const { row, within } = this.grid['findRowByOffset'](contentRelativeY);
       return within >= this.grid['rowMgr'].getHeight(row) - RESIZE_GUTTER;
     }
     return false;

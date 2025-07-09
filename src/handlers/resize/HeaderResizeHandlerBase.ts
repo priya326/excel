@@ -53,9 +53,15 @@ export abstract class HeaderResizeHandlerBase implements EventHandler {
   }
 
   onPointerMove(evt: MouseEvent): void {
-    this.grid['canvas'].style.cursor = 'cell';
-    const idx = this.getIndex(evt);
-    const within = this.getWithin(evt.clientX, evt.clientY);
+    this.grid['canvas'].style.cursor = 'cell'; // Default cursor if not over a gutter
+
+    // Get content-relative mouse position
+    const { x: contentMouseX, y: contentMouseY } = this.grid['getMousePos'](evt);
+
+    const idx = this.getIndex(evt); // getIndex in derived classes already uses getMousePos
+    // Pass content-relative coordinates to getWithin
+    const within = this.getWithin(contentMouseX, contentMouseY);
+
     if (within >= this.getManager().getSize(idx) - this.getResizeGutter()) {
       this.grid['canvas'].style.cursor = this.getCursor();
     }
