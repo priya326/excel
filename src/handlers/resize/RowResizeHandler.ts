@@ -26,20 +26,23 @@ export class RowResizeHandler implements IGridOperationHandler {
   // Helper method to find row by offset, relative to data area
   private findRowByOffset(offsetY: number, grid: Grid): { row: number; within: number } {
     let y = 0;
-    for (let r = 0; r < grid.rowMgr.getTotalRows(); r++) { // Assuming ROWS is available via grid.rowMgr.getTotalRows()
+    const totalRows = grid.rowMgr.getCount(); // Use getCount() method
+    for (let r = 0; r < totalRows; r++) {
       const h = grid.rowMgr.getHeight(r);
       if (offsetY < y + h) return { row: r, within: offsetY - y };
       y += h;
     }
-    return { row: grid.rowMgr.getTotalRows() - 1, within: 0 };
+    return { row: totalRows > 0 ? totalRows - 1 : 0, within: 0 }; // Handle empty case
   }
 
   isHit(event: MouseEvent, grid: Grid): boolean {
     const { x: mouseX, y: mouseY } = this.getMouseCanvasPos(event, grid);
-    const { y: viewY } = grid.getMousePos(event); // This uses grid's internal getMousePos which includes scroll
+    const { y: viewY } = grid.getMousePos(event);
 
-    if (mouseX < grid.rowHeaderWidth && mouseY >= HEADER_SIZE) { // grid.rowHeaderWidth should be public or have a getter
-      const { row, within } = this.findRowByOffset(viewY - HEADER_SIZE, grid);
+    if (mouseX < grid.rowHeaderWidth && mouseY >= HEADER_SIZE) {
+      const dataAreaY = viewY - HEADER_SIZE;
+      const { row, within } = this.findRowByOffset(dataAreaY, grid);
+      if (row < 0) return false;
       if (within >= grid.rowMgr.getHeight(row) - RESIZE_GUTTER) {
         return true;
       }

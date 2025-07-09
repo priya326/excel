@@ -20,12 +20,13 @@ export class RowHeaderDragHandler implements IGridOperationHandler {
 
   private findRowByOffset(offsetY: number, grid: Grid): { row: number; within: number } {
     let y = 0;
-    for (let r = 0; r < grid.rowMgr.getTotalRows(); r++) {
+    const totalRows = grid.rowMgr.getCount(); // Use getCount() method
+    for (let r = 0; r < totalRows; r++) {
       const h = grid.rowMgr.getHeight(r);
       if (offsetY < y + h) return { row: r, within: offsetY - y };
       y += h;
     }
-    return { row: grid.rowMgr.getTotalRows() - 1, within: 0 };
+    return { row: totalRows > 0 ? totalRows - 1 : 0, within: 0 }; // Handle empty case
   }
 
   isHit(event: MouseEvent, grid: Grid): boolean {

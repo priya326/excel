@@ -75,6 +75,10 @@ export class RowManager {
       }
     }
   
+    /** Get the number of rows */
+    public getCount(): number {
+      return this.rowHeights.length;
+    }
    
   }
   

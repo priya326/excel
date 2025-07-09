@@ -160,10 +160,15 @@ export class Grid {
     if (!ctx) throw new Error("Canvas 2D context not supported");
     this.ctx = ctx;
 
-    this.container = document.getElementById("canvas-container")!;
+    const containerElement = document.getElementById("canvas-container");
+    if (!containerElement) {
+      throw new Error("Grid container element '#canvas-container' not found.");
+    }
+    this.container = containerElement;
 
-    const rect = this.canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
+    // dpr is initialized at module level, canvas dimensions set by resizeCanvas
+    // const rect = this.canvas.getBoundingClientRect();
+    // canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
@@ -221,9 +226,19 @@ export class Grid {
   }
 
   private resizeCanvas(): void {
-    this.canvas.width = this.container.clientWidth;
-    this.canvas.height = this.container.clientHeight;
-    dpr = window.devicePixelRatio
+    dpr = window.devicePixelRatio || 1; // Ensure dpr is current
+
+    const newWidth = this.container.clientWidth;
+    const newHeight = this.container.clientHeight;
+
+    this.canvas.width = newWidth * dpr;
+    this.canvas.height = newHeight * dpr;
+
+    this.canvas.style.width = newWidth + 'px';
+    this.canvas.style.height = newHeight + 'px';
+
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Apply scaling transform (or use ctx.scale(dpr, dpr) after reset)
+
     this.scheduleRender();
   }
 
@@ -1677,17 +1692,15 @@ export class Grid {
    * Renders the grid.
    */
   private render(): void {
-    const dpr = window.devicePixelRatio || 1;
-    // Set canvas size in physical pixels for crisp lines
-    this.canvas.width = this.container.clientWidth * dpr;
-    this.canvas.height = this.container.clientHeight * dpr;
-    this.canvas.style.width = this.container.clientWidth + "px";
-    this.canvas.style.height = this.container.clientHeight + "px";
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0); // reset
-    this.ctx.scale(dpr, dpr);
+    // Canvas dimensions and scaling are now handled by resizeCanvas and constructor.
+    // Ensure dpr here is consistent if used for any direct calculations, though most should be logical.
+    // const dpr = window.devicePixelRatio || 1; // Module/class level `dpr` should be up-to-date.
+
     const scrollX = this.container.scrollLeft;
     const scrollY = this.container.scrollTop;
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Clear the canvas using logical dimensions
+    this.ctx.clearRect(0, 0, this.container.clientWidth, this.container.clientHeight);
 
     // Draw the top-left box (intersection of row/col headers)
     const isTopLeftHovered = this._isTopLeftHovered || false;

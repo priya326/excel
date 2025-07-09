@@ -19,23 +19,24 @@ export class CellSelectionHandler implements IGridOperationHandler {
 
   private findColumnByOffset(offsetX: number, grid: Grid): { col: number; within: number } {
     let x = 0;
-    // Assumes grid.rowHeaderWidth is accessible
-    for (let c = 0; c < grid.colMgr.getTotalColumns(); c++) {
+    const totalCols = grid.colMgr.getCount(); // Use getCount() method
+    for (let c = 0; c < totalCols; c++) {
       const w = grid.colMgr.getWidth(c);
       if (offsetX < x + w) return { col: c, within: offsetX - x };
       x += w;
     }
-    return { col: grid.colMgr.getTotalColumns() - 1, within: 0 };
+    return { col: totalCols > 0 ? totalCols - 1 : 0, within: 0 }; // Handle empty case
   }
 
   private findRowByOffset(offsetY: number, grid: Grid): { row: number; within: number } {
     let y = 0;
-    for (let r = 0; r < grid.rowMgr.getTotalRows(); r++) {
+    const totalRows = grid.rowMgr.getCount(); // Use getCount() method
+    for (let r = 0; r < totalRows; r++) {
       const h = grid.rowMgr.getHeight(r);
       if (offsetY < y + h) return { row: r, within: offsetY - y };
       y += h;
     }
-    return { row: grid.rowMgr.getTotalRows() - 1, within: 0 };
+    return { row: totalRows > 0 ? totalRows - 1 : 0, within: 0 }; // Handle empty case
   }
 
   isHit(event: MouseEvent, grid: Grid): boolean {

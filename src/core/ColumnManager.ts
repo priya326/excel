@@ -37,6 +37,11 @@ export class ColumnManager {
       return this.colWidths.reduce((a, b) => a + b, 0);
     }
 
+    /** Get the number of columns */
+    public getCount(): number {
+      return this.colWidths.length;
+    }
+
     /**
      * Inserts a new column at the specified index.
      * @param {number} colIndex The index where to insert the new column.

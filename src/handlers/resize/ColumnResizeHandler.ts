@@ -26,20 +26,23 @@ export class ColumnResizeHandler implements IGridOperationHandler {
   // Helper method to find column by offset, relative to data area
   private findColumnByOffset(offsetX: number, grid: Grid): { col: number; within: number } {
     let x = 0;
-    for (let c = 0; c < grid.colMgr.getTotalColumns(); c++) { // Assuming COLS is available via grid.colMgr.getTotalColumns()
+    const totalCols = grid.colMgr.getCount(); // Use getCount() method
+    for (let c = 0; c < totalCols; c++) {
       const w = grid.colMgr.getWidth(c);
       if (offsetX < x + w) return { col: c, within: offsetX - x };
       x += w;
     }
-    return { col: grid.colMgr.getTotalColumns() - 1, within: 0 };
+    return { col: totalCols > 0 ? totalCols - 1 : 0, within: 0 }; // Handle empty case
   }
 
   isHit(event: MouseEvent, grid: Grid): boolean {
     const { x: mouseX, y: mouseY } = this.getMouseCanvasPos(event, grid);
-    const { x: viewX } = grid.getMousePos(event); // This uses grid's internal getMousePos which includes scroll
+    const { x: viewX } = grid.getMousePos(event);
 
-    if (mouseY < HEADER_SIZE && mouseX >= grid.rowHeaderWidth) { // grid.rowHeaderWidth should be public or have a getter
-      const { col, within } = this.findColumnByOffset(viewX - grid.rowHeaderWidth, grid);
+    if (mouseY < HEADER_SIZE && mouseX >= grid.rowHeaderWidth) {
+      const dataAreaX = viewX - grid.rowHeaderWidth;
+      const { col, within } = this.findColumnByOffset(dataAreaX, grid);
+      if (col < 0) return false; // Should not happen if findColumnByOffset is correct
       if (within >= grid.colMgr.getWidth(col) - RESIZE_GUTTER) {
         return true;
       }
