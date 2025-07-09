@@ -27,6 +27,7 @@ import { RowResizeHandler } from '../handlers/resize/RowResizeHandler';
 import { HeaderDragHandler } from '../handlers/drag/HeaderDragHandler';
 import { CellSelectHandler } from '../handlers/select/CellSelectHandler';
 import { RowSelectHandler } from '../handlers/select/RowSelectHandler';
+import { SelectAllHandler } from '../handlers/select/SelectAllHandler';
 
 
 /**
@@ -77,30 +78,30 @@ export class Grid {
   private suppressRender: boolean = false;
   /** @type {boolean} Whether a render is scheduled. */
   private renderScheduled: boolean = false;
-  /** @type {boolean} Whether the mouse is currently down for drag selection. */
-  private isMouseDown: boolean = false;
-  /** @type {boolean} Whether the mouse is currently dragging on column headers. */
-  private isColHeaderDrag: boolean = false;
-  /** @type {{row: number, col: number}|null} The cell where drag selection started. */
-  private dragStartCell: { row: number; col: number } | null = null;
-  /** @type {number|null} The column where column header drag started. */
-  private dragStartColHeader: number | null = null;
-  /** @type {{x: number, y: number}|null} The position where drag selection started. */
-  private dragStartMouse: { x: number; y: number } | null = null;
-  /** @type {number|null} The row being resized, if any. */
-  private resizingRow: number | null = null;
-  /** @type {number} The X position where a drag or resize started. */
-  private dragStartX: number = 0;
-  /** @type {number} The Y position where a drag or resize started. */
-  private dragStartY: number = 0;
-  /** @type {number} The original size (width/height) before resizing. */
-  private originalSize: number = 0;
+  // /** @type {boolean} Whether the mouse is currently down for drag selection. */
+  // private isMouseDown: boolean = false; // Moved to handlers
+  // /** @type {boolean} Whether the mouse is currently dragging on column headers. */
+  // private isColHeaderDrag: boolean = false; // Moved to HeaderDragHandler
+  // /** @type {{row: number, col: number}|null} The cell where drag selection started. */
+  // private dragStartCell: { row: number; col: number } | null = null; // Moved to CellSelectHandler
+  // /** @type {number|null} The column where column header drag started. */
+  // private dragStartColHeader: number | null = null; // Moved to HeaderDragHandler
+  // /** @type {{x: number, y: number}|null} The position where drag selection started. */
+  // private dragStartMouse: { x: number; y: number } | null = null; // Moved to handlers
+  // /** @type {number|null} The row being resized, if any. */
+  // private resizingRow: number | null = null; // Managed by RowResizeHandler
+  // /** @type {number} The X position where a drag or resize started. */
+  // private dragStartX: number = 0; // Managed by resize handlers
+  // /** @type {number} The Y position where a drag or resize started. */
+  // private dragStartY: number = 0; // Managed by resize handlers
+  // /** @type {number} The original size (width/height) before resizing. */
+  // private originalSize: number = 0; // Managed by resize handlers
   private commandManager: CommandManager = new CommandManager();
-  // Add these properties to track resize operations
-  /** @type {any} command for resizing */
-  private currentResizeCommand: any = null;
-  /** @type {boolean} determines if resizing is currently happenning or not */
-  private isResizing: boolean = false;
+  // // Add these properties to track resize operations
+  // /** @type {any} command for resizing */
+  // private currentResizeCommand: any = null; // Managed by resize handlers
+  // /** @type {boolean} determines if resizing is currently happenning or not */
+  // private isResizing: boolean = false; // Managed by resize handlers
   /** @type {number} the offest used in marching ants */
   private dashOffset: number = 0;
   /** @type {{startRow:number, startCol: number, endRow: number, endCol: number}|null} hold the range of data for whose calculations are to be made*/
@@ -115,20 +116,20 @@ export class Grid {
   /** @type {Cell|null} saves the current cell which is being edited */
   private editingCellInstance: Cell | null = null;
 
-  /** @type {number|null} The column being resized, if any. */
-  private resizingCol: number | null = null;
+  // /** @type {number|null} The column being resized, if any. */
+  // private resizingCol: number | null = null; // Managed by ColumnResizeHandler
 
-  // Helper flag to track if header drag has moved
-  /** @type {boolean} Whether the column header drag has moved. */
-  private _colHeaderDragHasDragged: boolean = false;
+  // // Helper flag to track if header drag has moved
+  // /** @type {boolean} Whether the column header drag has moved. */
+  // private _colHeaderDragHasDragged: boolean = false; // Moved to HeaderDragHandler (as colHeaderDragged)
 
-  /** @type {boolean} Whether the mouse is currently dragging on row headers. */
-  private isRowHeaderDrag: boolean = false;
-  /** @type {number|null} The row where row header drag started. */
-  private dragStartRowHeader: number | null = null;
-  // Helper flag to track if row header drag has moved
-  /** @type {boolean} Whether the row header drag has moved. */
-  private _rowHeaderDragHasDragged: boolean = false;
+  // /** @type {boolean} Whether the mouse is currently dragging on row headers. */
+  // private isRowHeaderDrag: boolean = false; // Moved to RowSelectHandler (as isRowHeaderDragActive)
+  // /** @type {number|null} The row where row header drag started. */
+  // private dragStartRowHeader: number | null = null; // Moved to RowSelectHandler
+  // // Helper flag to track if row header drag has moved
+  // /** @type {boolean} Whether the row header drag has moved. */
+  // private _rowHeaderDragHasDragged: boolean = false; // Moved to RowSelectHandler (as rowHeaderDragged)
 
   // Track hover state for top-left box
   /** @type {boolean} Whether the top-left box is hovered. */
@@ -173,6 +174,7 @@ export class Grid {
   private headerDragHandler: HeaderDragHandler;
   private rowSelectHandler: RowSelectHandler;
   private cellSelectHandler: CellSelectHandler;
+  private selectAllHandler: SelectAllHandler;
 
   /* ─────────────────────────────────────────────────────────────────── */
   /**
@@ -219,14 +221,23 @@ export class Grid {
     this.canvas.style.cursor ="cell"
     this.columnResizeHandler = new ColumnResizeHandler(this);
     this.rowResizeHandler = new RowResizeHandler(this);
+    this.columnResizeHandler = new ColumnResizeHandler(this);
+    this.rowResizeHandler = new RowResizeHandler(this);
+    this.selectAllHandler = new SelectAllHandler(this); // Instantiate SelectAllHandler
     this.headerDragHandler = new HeaderDragHandler(this);
     this.rowSelectHandler = new RowSelectHandler(this);
     this.cellSelectHandler = new CellSelectHandler(this);
     this.eventRouter = new EventRouter([
+      // Priority:
+      // 1. SelectAll (top-left box is specific and should take precedence)
+      // 2. Resizing (gutters are small and specific)
+      // 3. Header dragging/selection
+      // 4. Cell selection (most general)
+      this.selectAllHandler,
       this.columnResizeHandler,
       this.rowResizeHandler,
-      this.headerDragHandler,
-      this.rowSelectHandler,
+      this.headerDragHandler, // Handles column header click/drag for selection
+      this.rowSelectHandler,   // Handles row header click/drag for selection
       this.cellSelectHandler,
     ]);
 
@@ -561,142 +572,142 @@ export class Grid {
    */
   private onMouseDown(evt: MouseEvent): void {
     // Finish editing if a cell is being edited before changing selection
-    if (this.editorInput && this.editingCell) {
-      this.finishEditing(true);
-    }
-    this.columnSelectionAnchor = null;
-    this.columnSelectionFocus = null;
-    this.rowSelectionAnchor = null;
-    this.rowSelectionFocus = null;
-    // Use event offset for header hit-testing so header resize works when scrolled
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = evt.clientX - rect.left;
-    const mouseY = evt.clientY - rect.top;
-    const { x, y } = this.getMousePos(evt);
+    // if (this.editorInput && this.editingCell) {
+    //   this.finishEditing(true);
+    // }
+    // this.columnSelectionAnchor = null;
+    // this.columnSelectionFocus = null;
+    // this.rowSelectionAnchor = null;
+    // this.rowSelectionFocus = null;
+    // // Use event offset for header hit-testing so header resize works when scrolled
+    // const rect = this.canvas.getBoundingClientRect();
+    // const mouseX = evt.clientX - rect.left;
+    // const mouseY = evt.clientY - rect.top;
+    // const { x, y } = this.getMousePos(evt);
 
-    /* 1 Column header area (top header bar) - resize and drag checks */
-    if (mouseY < HEADER_SIZE && mouseX >= HEADER_SIZE) {
-      const { col, within } = this.findColumnByOffset(x - HEADER_SIZE);
-      if (within >= this.colMgr.getWidth(col) - RESIZE_GUTTER) {
-        this.resizingCol = col;
-        this.dragStartX = evt.clientX;
-        this.originalSize = this.colMgr.getWidth(col);
-        this.isResizing = true;
-        // Composite command for multi-column resize
-        const selectedCols = this.selMgr.getSelectedColumns();
-        if (selectedCols.length > 1 && selectedCols.includes(col)) {
-          const commands = selectedCols.map(
-            (c) =>
-              new ResizeColumnCommand(
-                this,
-                c,
-                this.colMgr.getWidth(c),
-                this.colMgr.getWidth(c)
-              )
-          );
-          this.currentResizeCommand = new CompositeCommand(commands);
-        } else {
-          this.currentResizeCommand = new ResizeColumnCommand(
-            this,
-            this.resizingCol,
-            this.originalSize,
-            this.originalSize
-          );
-        }
-        this.ctx.strokeStyle = "#107C41";
-        this.ctx.lineWidth = 2 / window.devicePixelRatio;
-        return;
-      }
-      // --- Multi-column drag selection start ---
-      const { col: colIndex } = this.findColumnByOffset(x - HEADER_SIZE);
-      this.isColHeaderDrag = true;
-      this.isMouseDown = true;
-      this.dragStartColHeader = colIndex;
-      // Set anchor and focus for mouse drag
-      this.columnSelectionAnchor = colIndex;
-      this.columnSelectionFocus = colIndex;
-      this.pendingEditCell = { row: 0, col: colIndex };
-      this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
-      this._colHeaderDragHasDragged = false; // helper flag
-      // Clear any existing row selections when starting column selection
-      this.selMgr.clearSelectedRows();
-      // Do NOT select yet; wait for mouseup or drag
-      return;
-    }
+    // /* 1 Column header area (top header bar) - resize and drag checks */
+    // if (mouseY < HEADER_SIZE && mouseX >= HEADER_SIZE) {
+    //   const { col, within } = this.findColumnByOffset(x - HEADER_SIZE);
+    //   if (within >= this.colMgr.getWidth(col) - RESIZE_GUTTER) {
+    //     this.resizingCol = col;
+    //     this.dragStartX = evt.clientX;
+    //     this.originalSize = this.colMgr.getWidth(col);
+    //     this.isResizing = true;
+    //     // Composite command for multi-column resize
+    //     const selectedCols = this.selMgr.getSelectedColumns();
+    //     if (selectedCols.length > 1 && selectedCols.includes(col)) {
+    //       const commands = selectedCols.map(
+    //         (c) =>
+    //           new ResizeColumnCommand(
+    //             this,
+    //             c,
+    //             this.colMgr.getWidth(c),
+    //             this.colMgr.getWidth(c)
+    //           )
+    //       );
+    //       this.currentResizeCommand = new CompositeCommand(commands);
+    //     } else {
+    //       this.currentResizeCommand = new ResizeColumnCommand(
+    //         this,
+    //         this.resizingCol,
+    //         this.originalSize,
+    //         this.originalSize
+    //       );
+    //     }
+    //     this.ctx.strokeStyle = "#107C41";
+    //     this.ctx.lineWidth = 2 / window.devicePixelRatio;
+    //     return;
+    //   }
+    //   // --- Multi-column drag selection start ---
+    //   const { col: colIndex } = this.findColumnByOffset(x - HEADER_SIZE);
+    //   this.isColHeaderDrag = true;
+    //   this.isMouseDown = true;
+    //   this.dragStartColHeader = colIndex;
+    //   // Set anchor and focus for mouse drag
+    //   this.columnSelectionAnchor = colIndex;
+    //   this.columnSelectionFocus = colIndex;
+    //   this.pendingEditCell = { row: 0, col: colIndex };
+    //   this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
+    //   this._colHeaderDragHasDragged = false; // helper flag
+    //   // Clear any existing row selections when starting column selection
+    //   this.selMgr.clearSelectedRows();
+    //   // Do NOT select yet; wait for mouseup or drag
+    //   return;
+    // }
 
-    /* 2 Row header area (left header bar) - resize and drag checks */
-    if (mouseX < HEADER_SIZE && mouseY >= HEADER_SIZE) {
-      const { row, within } = this.findRowByOffset(y - HEADER_SIZE);
-      if (within >= this.rowMgr.getHeight(row) - RESIZE_GUTTER) {
-        this.resizingRow = row;
-        this.dragStartY = evt.clientY;
-        this.originalSize = this.rowMgr.getHeight(row);
-        this.isResizing = true;
-        // Composite command for multi-row resize
-        const selectedRows = this.selMgr.getSelectedRows();
-        if (selectedRows.length > 1 && selectedRows.includes(row)) {
-          const commands = selectedRows.map(
-            (r) =>
-              new ResizeRowCommand(
-                this,
-                r,
-                this.rowMgr.getHeight(r),
-                this.rowMgr.getHeight(r)
-              )
-          );
-          this.currentResizeCommand = new CompositeCommand(commands);
-        } else {
-          this.currentResizeCommand = new ResizeRowCommand(
-            this,
-            this.resizingRow,
-            this.originalSize,
-            this.originalSize
-          );
-        }
-        return;
-      }
-      // --- Multi-row drag selection start ---
-      this.isRowHeaderDrag = true;
-      this.isMouseDown = true;
-      this.dragStartRowHeader = row;
-      // Set anchor and focus for mouse drag
-      this.rowSelectionAnchor = row;
-      this.rowSelectionFocus = row;
-      this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
-      this._rowHeaderDragHasDragged = false;
-      this.pendingEditCell = { row: row, col: 0 };
-      // Clear any existing column selections when starting row selection
-      this.selMgr.clearSelectedColumns();
-      // Do NOT select yet; wait for mouseup or drag
-      return;
-    }
+    // /* 2 Row header area (left header bar) - resize and drag checks */
+    // if (mouseX < HEADER_SIZE && mouseY >= HEADER_SIZE) {
+    //   const { row, within } = this.findRowByOffset(y - HEADER_SIZE);
+    //   if (within >= this.rowMgr.getHeight(row) - RESIZE_GUTTER) {
+    //     this.resizingRow = row;
+    //     this.dragStartY = evt.clientY;
+    //     this.originalSize = this.rowMgr.getHeight(row);
+    //     this.isResizing = true;
+    //     // Composite command for multi-row resize
+    //     const selectedRows = this.selMgr.getSelectedRows();
+    //     if (selectedRows.length > 1 && selectedRows.includes(row)) {
+    //       const commands = selectedRows.map(
+    //         (r) =>
+    //           new ResizeRowCommand(
+    //             this,
+    //             r,
+    //             this.rowMgr.getHeight(r),
+    //             this.rowMgr.getHeight(r)
+    //           )
+    //       );
+    //       this.currentResizeCommand = new CompositeCommand(commands);
+    //     } else {
+    //       this.currentResizeCommand = new ResizeRowCommand(
+    //         this,
+    //         this.resizingRow,
+    //         this.originalSize,
+    //         this.originalSize
+    //       );
+    //     }
+    //     return;
+    //   }
+    //   // --- Multi-row drag selection start ---
+    //   this.isRowHeaderDrag = true;
+    //   this.isMouseDown = true;
+    //   this.dragStartRowHeader = row;
+    //   // Set anchor and focus for mouse drag
+    //   this.rowSelectionAnchor = row;
+    //   this.rowSelectionFocus = row;
+    //   this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
+    //   this._rowHeaderDragHasDragged = false;
+    //   this.pendingEditCell = { row: row, col: 0 };
+    //   // Clear any existing column selections when starting row selection
+    //   this.selMgr.clearSelectedColumns();
+    //   // Do NOT select yet; wait for mouseup or drag
+    //   return;
+    // }
 
-    /* 3 Data area (including row 0) – start drag selection (or single cell) */
-    if (mouseX >= HEADER_SIZE && mouseY >= HEADER_SIZE) {
-      const { col } = this.findColumnByOffset(x - HEADER_SIZE);
-      const { row } = this.findRowByOffset(y - HEADER_SIZE);
-      if (evt.button === 0) {
-        // left click
-        // Clear any existing column/row selections when clicking in data area
-        this.selMgr.clearSelectedColumns();
-        this.selMgr.clearSelectedRows();
+    // /* 3 Data area (including row 0) – start drag selection (or single cell) */
+    // if (mouseX >= HEADER_SIZE && mouseY >= HEADER_SIZE) {
+    //   const { col } = this.findColumnByOffset(x - HEADER_SIZE);
+    //   const { row } = this.findRowByOffset(y - HEADER_SIZE);
+    //   if (evt.button === 0) {
+    //     // left click
+    //     // Clear any existing column/row selections when clicking in data area
+    //     this.selMgr.clearSelectedColumns();
+    //     this.selMgr.clearSelectedRows();
 
-        // Select cell immediately
-        this.selMgr.selectCell(row, col);
-        // this.scrollToCell(row, col);
-        this.scheduleRender();
-        // Prepare for possible drag selection
-        this.isMouseDown = true;
-        this.isColHeaderDrag = false;
-        this.isRowHeaderDrag = false;
-        this.dragStartCell = { row, col };
-        this.pendingEditCell = { row, col }; // Only set for data area
-        this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
-      }
-    }
+    //     // Select cell immediately
+    //     this.selMgr.selectCell(row, col);
+    //     // this.scrollToCell(row, col);
+    //     this.scheduleRender();
+    //     // Prepare for possible drag selection
+    //     this.isMouseDown = true;
+    //     this.isColHeaderDrag = false;
+    //     this.isRowHeaderDrag = false;
+    //     this.dragStartCell = { row, col };
+    //     this.pendingEditCell = { row, col }; // Only set for data area
+    //     this.dragStartMouse = { x: evt.clientX, y: evt.clientY };
+    //   }
+    // }
 
-    this.computeSelectionStats();
-    this.updateToolbarState();
+    // this.computeSelectionStats();
+    // this.updateToolbarState();
   }
 
   /**
@@ -720,182 +731,182 @@ export class Grid {
    * @param evt - The mouse event
    */
   private onMouseMove(evt: MouseEvent): void {
-    // Use event offset for header hit-testing so header resize works when scrolled
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = evt.clientX - rect.left;
-    const mouseY = evt.clientY - rect.top;
-    const { x, y } = this.getMousePos(evt);
+    // // Use event offset for header hit-testing so header resize works when scrolled
+    // const rect = this.canvas.getBoundingClientRect();
+    // const mouseX = evt.clientX - rect.left;
+    // const mouseY = evt.clientY - rect.top;
+    // const { x, y } = this.getMousePos(evt);
 
-    /* Cursor feedback for resize */
-    this.canvas.style.cursor = "cell";
-    if (mouseY < HEADER_SIZE && mouseX >= HEADER_SIZE) {
-      const { col, within } = this.findColumnByOffset(x - HEADER_SIZE);
-      if (within >= this.colMgr.getWidth(col) - RESIZE_GUTTER) {
-        this.canvas.style.cursor = "col-resize";
-      } else {
-        this.canvas.style.cursor = "grab";
-      }
-    } else if (mouseX < HEADER_SIZE && mouseY >= HEADER_SIZE) {
-      const { row, within } = this.findRowByOffset(y - HEADER_SIZE);
-      if (within >= this.rowMgr.getHeight(row) - RESIZE_GUTTER) {
-        this.canvas.style.cursor = "row-resize";
-      } else {
-        this.canvas.style.cursor = "grab";
-      }
-    }
+    // /* Cursor feedback for resize */
+    // this.canvas.style.cursor = "cell";
+    // if (mouseY < HEADER_SIZE && mouseX >= HEADER_SIZE) {
+    //   const { col, within } = this.findColumnByOffset(x - HEADER_SIZE);
+    //   if (within >= this.colMgr.getWidth(col) - RESIZE_GUTTER) {
+    //     this.canvas.style.cursor = "col-resize";
+    //   } else {
+    //     this.canvas.style.cursor = "grab";
+    //   }
+    // } else if (mouseX < HEADER_SIZE && mouseY >= HEADER_SIZE) {
+    //   const { row, within } = this.findRowByOffset(y - HEADER_SIZE);
+    //   if (within >= this.rowMgr.getHeight(row) - RESIZE_GUTTER) {
+    //     this.canvas.style.cursor = "row-resize";
+    //   } else {
+    //     this.canvas.style.cursor = "grab";
+    //   }
+    // }
 
-    // --- Multi-column drag selection update (highest priority) ---
-    if (
-      this.isColHeaderDrag &&
-      this.isMouseDown &&
-      this.dragStartColHeader !== null
-    ) {
-      if (!this.selMgr.isDragging() && this.dragStartMouse) {
-        const dx = Math.abs(evt.clientX - this.dragStartMouse.x);
-        if (dx > 2) {
-          // threshold in pixels
-          this.selMgr.startDrag(0, this.dragStartColHeader);
-          this._colHeaderDragHasDragged = true;
-          // Clear previous selected columns and add the starting column
-          this.selMgr.clearSelectedColumns();
-          this.selMgr.addSelectedColumn(this.dragStartColHeader);
-        }
-      }
-      if (this.selMgr.isDragging()) {
-        const { col } = this.findColumnByOffset(x - HEADER_SIZE);
-        this.selMgr.updateDrag(0, col);
-        // Update selected columns array based on drag range
-        const startCol = Math.min(this.dragStartColHeader!, col);
-        const endCol = Math.max(this.dragStartColHeader!, col);
-        const selectedCols: number[] = [];
-        for (let c = startCol; c <= endCol; c++) {
-          selectedCols.push(c);
-        }
-        // Auto-scroll horizontally if mouse is near left or right edge during column header drag
-        const edgeThreshold = 25; // px from edge to start auto-scroll
-        const scrollAmount = 40; // px to scroll per event
+    // // --- Multi-column drag selection update (highest priority) ---
+    // if (
+    //   this.isColHeaderDrag &&
+    //   this.isMouseDown &&
+    //   this.dragStartColHeader !== null
+    // ) {
+    //   if (!this.selMgr.isDragging() && this.dragStartMouse) {
+    //     const dx = Math.abs(evt.clientX - this.dragStartMouse.x);
+    //     if (dx > 2) {
+    //       // threshold in pixels
+    //       this.selMgr.startDrag(0, this.dragStartColHeader);
+    //       this._colHeaderDragHasDragged = true;
+    //       // Clear previous selected columns and add the starting column
+    //       this.selMgr.clearSelectedColumns();
+    //       this.selMgr.addSelectedColumn(this.dragStartColHeader);
+    //     }
+    //   }
+    //   if (this.selMgr.isDragging()) {
+    //     const { col } = this.findColumnByOffset(x - HEADER_SIZE);
+    //     this.selMgr.updateDrag(0, col);
+    //     // Update selected columns array based on drag range
+    //     const startCol = Math.min(this.dragStartColHeader!, col);
+    //     const endCol = Math.max(this.dragStartColHeader!, col);
+    //     const selectedCols: number[] = [];
+    //     for (let c = startCol; c <= endCol; c++) {
+    //       selectedCols.push(c);
+    //     }
+    //     // Auto-scroll horizontally if mouse is near left or right edge during column header drag
+    //     const edgeThreshold = 25; // px from edge to start auto-scroll
+    //     const scrollAmount = 40; // px to scroll per event
 
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = evt.clientX - rect.left; // relative to canvas
+    //     const rect = this.canvas.getBoundingClientRect();
+    //     const mouseX = evt.clientX - rect.left; // relative to canvas
 
-        const clientWidth = this.canvas.clientWidth; // FIX: use width not height
+    //     const clientWidth = this.canvas.clientWidth; // FIX: use width not height
 
-        if (mouseX > clientWidth - edgeThreshold) {
-          // Near right edge → scroll right
-          this.container.scrollLeft = Math.min(
-            this.container.scrollLeft + scrollAmount,
-            this.container.scrollWidth - this.container.clientWidth
-          );
-        } else if (mouseX < edgeThreshold) {
-          // Near left edge → scroll left
-          this.container.scrollLeft = Math.max(
-            this.container.scrollLeft - scrollAmount,
-            0
-          );
-        }
-        const maxScrollLeft =
-          this.container.scrollWidth - this.container.clientWidth;
-        if (
-          mouseX > clientWidth - edgeThreshold &&
-          this.container.scrollLeft < maxScrollLeft
-        ) {
-          this.container.scrollLeft = Math.min(
-            this.container.scrollLeft + scrollAmount,
-            maxScrollLeft
-          );
-        } else if (mouseX < edgeThreshold && this.container.scrollLeft > 0) {
-          this.container.scrollLeft = Math.max(
-            this.container.scrollLeft - scrollAmount,
-            0
-          );
-        }
+    //     if (mouseX > clientWidth - edgeThreshold) {
+    //       // Near right edge → scroll right
+    //       this.container.scrollLeft = Math.min(
+    //         this.container.scrollLeft + scrollAmount,
+    //         this.container.scrollWidth - this.container.clientWidth
+    //       );
+    //     } else if (mouseX < edgeThreshold) {
+    //       // Near left edge → scroll left
+    //       this.container.scrollLeft = Math.max(
+    //         this.container.scrollLeft - scrollAmount,
+    //         0
+    //       );
+    //     }
+    //     const maxScrollLeft =
+    //       this.container.scrollWidth - this.container.clientWidth;
+    //     if (
+    //       mouseX > clientWidth - edgeThreshold &&
+    //       this.container.scrollLeft < maxScrollLeft
+    //     ) {
+    //       this.container.scrollLeft = Math.min(
+    //         this.container.scrollLeft + scrollAmount,
+    //         maxScrollLeft
+    //       );
+    //     } else if (mouseX < edgeThreshold && this.container.scrollLeft > 0) {
+    //       this.container.scrollLeft = Math.max(
+    //         this.container.scrollLeft - scrollAmount,
+    //         0
+    //       );
+    //     }
 
-        // // Scroll to the last visible column in the drag range
-        // const lastVisibleCol = Math.max(startCol, endCol);
-        // this.scrollToCell(0, lastVisibleCol);
-        this.selMgr.setSelectedColumns(selectedCols);
-        //this.throttledScheduleRender();
-        this.scheduleRender();
-      }
-      return;
-    }
+    //     // // Scroll to the last visible column in the drag range
+    //     // const lastVisibleCol = Math.max(startCol, endCol);
+    //     // this.scrollToCell(0, lastVisibleCol);
+    //     this.selMgr.setSelectedColumns(selectedCols);
+    //     //this.throttledScheduleRender();
+    //     this.scheduleRender();
+    //   }
+    //   return;
+    // }
 
-    // --- Multi-row drag selection update (second priority) ---
-    if (
-      this.isRowHeaderDrag &&
-      this.isMouseDown &&
-      this.dragStartRowHeader !== null
-    ) {
-      if (!this.selMgr.isDragging() && this.dragStartMouse) {
-        const dy = Math.abs(evt.clientY - this.dragStartMouse.y);
-        if (dy > 2) {
-          // threshold in pixels
-          this.selMgr.startDrag(this.dragStartRowHeader, 0);
-          this._rowHeaderDragHasDragged = true;
-          this.selMgr.clearSelectedRows();
-          this.selMgr.addSelectedRow(this.dragStartRowHeader);
-        }
-      }
-      if (this.selMgr.isDragging()) {
-        const { row } = this.findRowByOffset(y - HEADER_SIZE);
-        this.selMgr.updateDrag(row, 0);
-        const startRow = Math.min(this.dragStartRowHeader!, row);
-        const endRow = Math.max(this.dragStartRowHeader!, row);
-        const selectedRows: number[] = [];
-        for (let r = startRow; r <= endRow; r++) {
-          selectedRows.push(r);
-        }
-        const edgeThreshold = 25; // px from edge to start auto-scroll
-        const scrollAmount = 10; // px to scroll per event
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseY = evt.clientY - rect.top;
-        const clientHeight = this.canvas.clientHeight;
-        if (mouseY > clientHeight - edgeThreshold) {
-          this.container.scrollTop = Math.min(
-            this.container.scrollTop + scrollAmount,
-            this.container.scrollHeight - this.container.clientHeight
-          );
-        } else if (mouseY < edgeThreshold) {
-          this.container.scrollTop = Math.max(
-            this.container.scrollTop - scrollAmount,
-            0
-          );
-        }
-        this.selMgr.setSelectedRows(selectedRows);
-        this.scheduleRender();
-        //this.throttledScheduleRender();
-      }
-      return;
-    }
+    // // --- Multi-row drag selection update (second priority) ---
+    // if (
+    //   this.isRowHeaderDrag &&
+    //   this.isMouseDown &&
+    //   this.dragStartRowHeader !== null
+    // ) {
+    //   if (!this.selMgr.isDragging() && this.dragStartMouse) {
+    //     const dy = Math.abs(evt.clientY - this.dragStartMouse.y);
+    //     if (dy > 2) {
+    //       // threshold in pixels
+    //       this.selMgr.startDrag(this.dragStartRowHeader, 0);
+    //       this._rowHeaderDragHasDragged = true;
+    //       this.selMgr.clearSelectedRows();
+    //       this.selMgr.addSelectedRow(this.dragStartRowHeader);
+    //     }
+    //   }
+    //   if (this.selMgr.isDragging()) {
+    //     const { row } = this.findRowByOffset(y - HEADER_SIZE);
+    //     this.selMgr.updateDrag(row, 0);
+    //     const startRow = Math.min(this.dragStartRowHeader!, row);
+    //     const endRow = Math.max(this.dragStartRowHeader!, row);
+    //     const selectedRows: number[] = [];
+    //     for (let r = startRow; r <= endRow; r++) {
+    //       selectedRows.push(r);
+    //     }
+    //     const edgeThreshold = 25; // px from edge to start auto-scroll
+    //     const scrollAmount = 10; // px to scroll per event
+    //     const rect = this.canvas.getBoundingClientRect();
+    //     const mouseY = evt.clientY - rect.top;
+    //     const clientHeight = this.canvas.clientHeight;
+    //     if (mouseY > clientHeight - edgeThreshold) {
+    //       this.container.scrollTop = Math.min(
+    //         this.container.scrollTop + scrollAmount,
+    //         this.container.scrollHeight - this.container.clientHeight
+    //       );
+    //     } else if (mouseY < edgeThreshold) {
+    //       this.container.scrollTop = Math.max(
+    //         this.container.scrollTop - scrollAmount,
+    //         0
+    //       );
+    //     }
+    //     this.selMgr.setSelectedRows(selectedRows);
+    //     this.scheduleRender();
+    //     //this.throttledScheduleRender();
+    //   }
+    //   return;
+    // }
 
-    /* Drag‑to‑select update (cells) - lowest priority */
-    if (
-      this.isMouseDown &&
-      this.dragStartCell &&
-      !this.isColHeaderDrag &&
-      !this.isRowHeaderDrag &&
-      x >= HEADER_SIZE &&
-      y >= HEADER_SIZE
-    ) {
-      // If not already dragging, check if mouse moved enough to start drag
-      if (!this.selMgr.isDragging() && this.dragStartMouse) {
-        const dx = Math.abs(evt.clientX - this.dragStartMouse.x);
-        const dy = Math.abs(evt.clientY - this.dragStartMouse.y);
-        if (dx > 2 || dy > 2) {
-          // threshold in pixels
-          this.selMgr.startDrag(this.dragStartCell.row, this.dragStartCell.col);
-        }
-      }
-      if (this.selMgr.isDragging()) {
-        const { col } = this.findColumnByOffset(x - HEADER_SIZE);
-        const { row } = this.findRowByOffset(y - HEADER_SIZE);
-        this.selMgr.updateDrag(row, col);
+    // /* Drag‑to‑select update (cells) - lowest priority */
+    // if (
+    //   this.isMouseDown &&
+    //   this.dragStartCell &&
+    //   !this.isColHeaderDrag &&
+    //   !this.isRowHeaderDrag &&
+    //   x >= HEADER_SIZE &&
+    //   y >= HEADER_SIZE
+    // ) {
+    //   // If not already dragging, check if mouse moved enough to start drag
+    //   if (!this.selMgr.isDragging() && this.dragStartMouse) {
+    //     const dx = Math.abs(evt.clientX - this.dragStartMouse.x);
+    //     const dy = Math.abs(evt.clientY - this.dragStartMouse.y);
+    //     if (dx > 2 || dy > 2) {
+    //       // threshold in pixels
+    //       this.selMgr.startDrag(this.dragStartCell.row, this.dragStartCell.col);
+    //     }
+    //   }
+    //   if (this.selMgr.isDragging()) {
+    //     const { col } = this.findColumnByOffset(x - HEADER_SIZE);
+    //     const { row } = this.findRowByOffset(y - HEADER_SIZE);
+    //     this.selMgr.updateDrag(row, col);
 
-        this.scrollToCell(row, col);
-        this.scheduleRender();
-        //this.throttledScheduleRender();
-      }
-    }
+    //     this.scrollToCell(row, col);
+    //     this.scheduleRender();
+    //     //this.throttledScheduleRender();
+    //   }
+    // }
   }
 
 
@@ -905,157 +916,157 @@ export class Grid {
    * @param evt - The mouse event
    */
   private onMouseDrag(evt: MouseEvent): void {
-    /* Column resize */
-    if (
-      this.resizingCol !== null &&
-      this.isResizing &&
-      this.currentResizeCommand
-    ) {
-      const dx = evt.clientX - this.dragStartX;
-      const newW = Math.max(40, this.originalSize + dx);
-      // If multiple columns are selected, resize all
-      const selectedCols = this.selMgr.getSelectedColumns();
-      if (
-        selectedCols.length > 1 &&
-        selectedCols.includes(this.resizingCol) &&
-        this.currentResizeCommand instanceof CompositeCommand
-      ) {
-        // Update all commands in the composite
-        for (let i = 0; i < selectedCols.length; i++) {
-          this.colMgr.setWidth(selectedCols[i], newW);
-          const cmd = this.currentResizeCommand.commands[i];
-          if (
-            "updateNewSize" in cmd &&
-            typeof cmd.updateNewSize === "function"
-          ) {
-            cmd.updateNewSize(newW);
-          }
-        }
-      } else {
-        this.colMgr.setWidth(this.resizingCol, newW);
-        this.currentResizeCommand.updateNewSize(newW);
-      }
-      this.updateEditorPosition();
-      //this.throttledScheduleRender();
-      this.scheduleRender();
-    }
-    /* Row resize */
-    if (
-      this.resizingRow !== null &&
-      this.isResizing &&
-      this.currentResizeCommand
-    ) {
-      const dy = evt.clientY - this.dragStartY;
-      const newH = Math.max(20, this.originalSize + dy);
-      const selectedRows = this.selMgr.getSelectedRows();
-      if (
-        selectedRows.length > 1 &&
-        selectedRows.includes(this.resizingRow) &&
-        this.currentResizeCommand instanceof CompositeCommand
-      ) {
-        for (let i = 0; i < selectedRows.length; i++) {
-          this.rowMgr.setHeight(selectedRows[i], newH);
-          const cmd = this.currentResizeCommand.commands[i];
-          if (
-            "updateNewSize" in cmd &&
-            typeof cmd.updateNewSize === "function"
-          ) {
-            cmd.updateNewSize(newH);
-          }
-        }
-      } else {
-        this.rowMgr.setHeight(this.resizingRow, newH);
-        this.currentResizeCommand.updateNewSize(newH);
-      }
-      this.updateEditorPosition();
-      //this.throttledScheduleRender();
-      this.scheduleRender();
-    }
+    // /* Column resize */
+    // if (
+    //   this.resizingCol !== null &&
+    //   this.isResizing &&
+    //   this.currentResizeCommand
+    // ) {
+    //   const dx = evt.clientX - this.dragStartX;
+    //   const newW = Math.max(40, this.originalSize + dx);
+    //   // If multiple columns are selected, resize all
+    //   const selectedCols = this.selMgr.getSelectedColumns();
+    //   if (
+    //     selectedCols.length > 1 &&
+    //     selectedCols.includes(this.resizingCol) &&
+    //     this.currentResizeCommand instanceof CompositeCommand
+    //   ) {
+    //     // Update all commands in the composite
+    //     for (let i = 0; i < selectedCols.length; i++) {
+    //       this.colMgr.setWidth(selectedCols[i], newW);
+    //       const cmd = this.currentResizeCommand.commands[i];
+    //       if (
+    //         "updateNewSize" in cmd &&
+    //         typeof cmd.updateNewSize === "function"
+    //       ) {
+    //         cmd.updateNewSize(newW);
+    //       }
+    //     }
+    //   } else {
+    //     this.colMgr.setWidth(this.resizingCol, newW);
+    //     this.currentResizeCommand.updateNewSize(newW);
+    //   }
+    //   this.updateEditorPosition();
+    //   //this.throttledScheduleRender();
+    //   this.scheduleRender();
+    // }
+    // /* Row resize */
+    // if (
+    //   this.resizingRow !== null &&
+    //   this.isResizing &&
+    //   this.currentResizeCommand
+    // ) {
+    //   const dy = evt.clientY - this.dragStartY;
+    //   const newH = Math.max(20, this.originalSize + dy);
+    //   const selectedRows = this.selMgr.getSelectedRows();
+    //   if (
+    //     selectedRows.length > 1 &&
+    //     selectedRows.includes(this.resizingRow) &&
+    //     this.currentResizeCommand instanceof CompositeCommand
+    //   ) {
+    //     for (let i = 0; i < selectedRows.length; i++) {
+    //       this.rowMgr.setHeight(selectedRows[i], newH);
+    //       const cmd = this.currentResizeCommand.commands[i];
+    //       if (
+    //         "updateNewSize" in cmd &&
+    //         typeof cmd.updateNewSize === "function"
+    //       ) {
+    //         cmd.updateNewSize(newH);
+    //       }
+    //     }
+    //   } else {
+    //     this.rowMgr.setHeight(this.resizingRow, newH);
+    //     this.currentResizeCommand.updateNewSize(newH);
+    //   }
+    //   this.updateEditorPosition();
+    //   //this.throttledScheduleRender();
+    //   this.scheduleRender();
+    // }
   }
 
   /**
    * Mouse up event handler
    */
   private onMouseUp(): void {
-    // Execute the resize command if we were resizing
-    if (this.isResizing && this.currentResizeCommand) {
-      this.commandManager.execute(this.currentResizeCommand);
-      this.currentResizeCommand = null;
-      this.isResizing = false;
-    }
+    // // Execute the resize command if we were resizing
+    // if (this.isResizing && this.currentResizeCommand) {
+    //   this.commandManager.execute(this.currentResizeCommand);
+    //   this.currentResizeCommand = null;
+    //   this.isResizing = false;
+    // }
 
-    this.resizingCol = null;
-    this.resizingRow = null;
-    // --- Multi-column drag selection end ---
-    if (this.isColHeaderDrag) {
-      // If not dragged, treat as single column selection
-      if (!this._colHeaderDragHasDragged && this.dragStartColHeader !== null) {
-        this.selMgr.selectColumn(this.dragStartColHeader);
-        this.pendingEditCell = { row: 0, col: this.dragStartColHeader };
-        this.selMgr.clearSelectedColumns();
-        this.selMgr.addSelectedColumn(this.dragStartColHeader);
-        this.scheduleRender();
-      } else if (this.selMgr.isDragging()) {
-        this.selMgr.endDrag();
-        this.scheduleRender();
-      }
-      this.isColHeaderDrag = false;
-      this.isMouseDown = false;
-      this.dragStartColHeader = null;
-      this.dragStartMouse = null;
-      this._colHeaderDragHasDragged = false;
-      this.computeSelectionStats();
-      this.updateToolbarState();
-      this.columnSelectionAnchor = null;
-      this.columnSelectionFocus = null;
-      this.rowSelectionAnchor = null;
-      this.rowSelectionFocus = null;
-      return;
-    }
-    // --- Multi-row drag selection end ---
-    if (this.isRowHeaderDrag) {
-      // If not dragged, treat as single row selection
-      if (!this._rowHeaderDragHasDragged && this.dragStartRowHeader !== null) {
-        this.selMgr.selectRow(this.dragStartRowHeader);
-        this.selMgr.clearSelectedRows();
-        this.selMgr.addSelectedRow(this.dragStartRowHeader);
-        this.scheduleRender();
-      } else if (this.selMgr.isDragging()) {
-        this.selMgr.endDrag();
-        this.scheduleRender();
-      }
-      this.isRowHeaderDrag = false;
-      this.isMouseDown = false;
-      this.dragStartRowHeader = null;
-      this.dragStartMouse = null;
-      this._rowHeaderDragHasDragged = false;
-      this.computeSelectionStats();
-      this.updateToolbarState();
-      this.columnSelectionAnchor = null;
-      this.columnSelectionFocus = null;
-      this.rowSelectionAnchor = null;
-      this.rowSelectionFocus = null;
-      return;
-    }
-    this.isMouseDown = false;
-    this.dragStartCell = null;
-    this.dragStartMouse = null;
+    // this.resizingCol = null;
+    // this.resizingRow = null;
+    // // --- Multi-column drag selection end ---
+    // if (this.isColHeaderDrag) {
+    //   // If not dragged, treat as single column selection
+    //   if (!this._colHeaderDragHasDragged && this.dragStartColHeader !== null) {
+    //     this.selMgr.selectColumn(this.dragStartColHeader);
+    //     this.pendingEditCell = { row: 0, col: this.dragStartColHeader };
+    //     this.selMgr.clearSelectedColumns();
+    //     this.selMgr.addSelectedColumn(this.dragStartColHeader);
+    //     this.scheduleRender();
+    //   } else if (this.selMgr.isDragging()) {
+    //     this.selMgr.endDrag();
+    //     this.scheduleRender();
+    //   }
+    //   this.isColHeaderDrag = false;
+    //   this.isMouseDown = false;
+    //   this.dragStartColHeader = null;
+    //   this.dragStartMouse = null;
+    //   this._colHeaderDragHasDragged = false;
+    //   this.computeSelectionStats();
+    //   this.updateToolbarState();
+    //   this.columnSelectionAnchor = null;
+    //   this.columnSelectionFocus = null;
+    //   this.rowSelectionAnchor = null;
+    //   this.rowSelectionFocus = null;
+    //   return;
+    // }
+    // // --- Multi-row drag selection end ---
+    // if (this.isRowHeaderDrag) {
+    //   // If not dragged, treat as single row selection
+    //   if (!this._rowHeaderDragHasDragged && this.dragStartRowHeader !== null) {
+    //     this.selMgr.selectRow(this.dragStartRowHeader);
+    //     this.selMgr.clearSelectedRows();
+    //     this.selMgr.addSelectedRow(this.dragStartRowHeader);
+    //     this.scheduleRender();
+    //   } else if (this.selMgr.isDragging()) {
+    //     this.selMgr.endDrag();
+    //     this.scheduleRender();
+    //   }
+    //   this.isRowHeaderDrag = false;
+    //   this.isMouseDown = false;
+    //   this.dragStartRowHeader = null;
+    //   this.dragStartMouse = null;
+    //   this._rowHeaderDragHasDragged = false;
+    //   this.computeSelectionStats();
+    //   this.updateToolbarState();
+    //   this.columnSelectionAnchor = null;
+    //   this.columnSelectionFocus = null;
+    //   this.rowSelectionAnchor = null;
+    //   this.rowSelectionFocus = null;
+    //   return;
+    // }
+    // this.isMouseDown = false;
+    // this.dragStartCell = null;
+    // this.dragStartMouse = null;
 
-    // Finalize drag selection if we were dragging
-    if (this.selMgr.isDragging()) {
-      this.selMgr.endDrag();
-      this.scheduleRender();
-      // If a drag rectangle exists and covers more than one cell, set pendingEditCell
+    // // Finalize drag selection if we were dragging
+    // if (this.selMgr.isDragging()) {
+    //   this.selMgr.endDrag();
+    //   this.scheduleRender();
+    //   // If a drag rectangle exists and covers more than one cell, set pendingEditCell
 
-      // Only update toolbar and stats once, here
-      this.computeSelectionStats();
-      this.updateToolbarState();
-      // Reset anchor/focus
-      this.columnSelectionAnchor = null;
-      this.columnSelectionFocus = null;
-      this.rowSelectionAnchor = null;
-      this.rowSelectionFocus = null;
-    }
+    //   // Only update toolbar and stats once, here
+    //   this.computeSelectionStats();
+    //   this.updateToolbarState();
+    //   // Reset anchor/focus
+    //   this.columnSelectionAnchor = null;
+    //   this.columnSelectionFocus = null;
+    //   this.rowSelectionAnchor = null;
+    //   this.rowSelectionFocus = null;
+    // }
   }
   /**
    * Key down event handler
