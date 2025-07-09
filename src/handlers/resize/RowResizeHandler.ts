@@ -9,24 +9,27 @@ export class RowResizeHandler extends HeaderResizeHandlerBase {
   hitTest(x: number, y: number, pointerType?: string): boolean { // x, y are canvas offsetX, offsetY
     const COL_HEADER_HEIGHT = 40;
     const MOUSE_RESIZE_GUTTER = 5;
-    const TOUCH_RESIZE_GUTTER = 20;
+    const TOUCH_RESIZE_GUTTER_PX = 20; // Desired physical gutter size for touch
+    const MOUSE_RESIZE_GUTTER_PX = 5;  // Desired physical gutter size for mouse
 
-    const effectiveResizeGutter = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+    const physicalGutter = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER_PX : MOUSE_RESIZE_GUTTER_PX;
     const currentZoom = this.grid.getZoomLevel();
+    const logicalGutter = physicalGutter / currentZoom;
+
     const logicalCanvasX = x / currentZoom;
     const logicalCanvasY = y / currentZoom;
 
-    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth(); // Logical width
+    const logicalRowHeaderWidth = this.grid.getRowHeaderWidth();
 
-    if (logicalCanvasX < currentGridRowHeaderWidth && logicalCanvasY >= COL_HEADER_HEIGHT) {
-      // Convert canvas-relative y to content-relative y for findRowByOffset
-      const logicalMouseYOnCanvas = y / currentZoom;
-      const contentRelativeY = logicalMouseYOnCanvas + this.grid['container'].scrollTop - COL_HEADER_HEIGHT;
-      const { row, within } = this.grid['findRowByOffset'](contentRelativeY); // within is logical
+    if (logicalCanvasX < logicalRowHeaderWidth && logicalCanvasY >= COL_HEADER_HEIGHT) {
+      // Convert logical canvas Y to content-relative logical Y for findRowByOffset
+      const contentRelativeLogicalY = logicalCanvasY + this.grid['container'].scrollTop - COL_HEADER_HEIGHT;
+      const { row, within } = this.grid['findRowByOffset'](contentRelativeLogicalY); // 'within' is logical
 
-      // getHeight is logical. effectiveResizeGutter should be treated as logical.
-      return within >= this.grid['rowMgr'].getHeight(row) - (effectiveResizeGutter / currentZoom) &&
-             within <= this.grid['rowMgr'].getHeight(row) + (effectiveResizeGutter / (2 * currentZoom));
+      // Compare logical 'within' against logical row height and logical gutter
+      // Check if 'within' is near the bottom edge of the row
+      return within >= this.grid['rowMgr'].getHeight(row) - logicalGutter &&
+             within <= this.grid['rowMgr'].getHeight(row) + logicalGutter / 2; // Allow some tolerance past the line
     }
     return false;
   }

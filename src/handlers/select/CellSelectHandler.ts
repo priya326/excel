@@ -12,14 +12,16 @@ export class CellSelectHandler implements EventHandler {
   }
 
   hitTest(x: number, y: number, pointerType?: string): boolean { // x, y are canvas offsetX, offsetY
-    const COL_HEADER_HEIGHT = 40; // Logical height of column headers
-    const ROW_HEADER_WIDTH = this.grid.getRowHeaderWidth(); // Logical width of row headers
+    const LOGICAL_COL_HEADER_HEIGHT = 40;
+    const logicalRowHeaderWidth = this.grid.getRowHeaderWidth(); // This is already logical
     const currentZoom = this.grid.getZoomLevel();
 
     const logicalCanvasX = x / currentZoom;
     const logicalCanvasY = y / currentZoom;
 
-    return logicalCanvasX >= ROW_HEADER_WIDTH && logicalCanvasY >= COL_HEADER_HEIGHT;
+    // Check if the logical canvas coordinates are within the data cell area
+    // (i.e., to the right of row headers and below column headers)
+    return logicalCanvasX >= logicalRowHeaderWidth && logicalCanvasY >= LOGICAL_COL_HEADER_HEIGHT;
   }
 
   onPointerDown(evt: MouseEvent): void {

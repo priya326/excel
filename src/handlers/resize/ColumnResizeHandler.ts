@@ -9,26 +9,27 @@ export class ColumnResizeHandler extends HeaderResizeHandlerBase {
   hitTest(x: number, y: number, pointerType?: string): boolean { // x,y are canvas offsetX, offsetY
     const COL_HEADER_HEIGHT = 40; // Actual height of the column header bar
     const MOUSE_RESIZE_GUTTER = 5;
-    const TOUCH_RESIZE_GUTTER = 20;
+    const TOUCH_RESIZE_GUTTER_PX = 20; // Desired physical gutter size for touch
+    const MOUSE_RESIZE_GUTTER_PX = 5;  // Desired physical gutter size for mouse
 
-    const effectiveResizeGutter = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+    const physicalGutter = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER_PX : MOUSE_RESIZE_GUTTER_PX;
     const currentZoom = this.grid.getZoomLevel();
+    const logicalGutter = physicalGutter / currentZoom; // Convert desired screen gutter to logical size
+
     const logicalCanvasX = x / currentZoom;
     const logicalCanvasY = y / currentZoom;
 
-    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth(); // Logical width
+    const logicalRowHeaderWidth = this.grid.getRowHeaderWidth();
 
-    if (logicalCanvasY < COL_HEADER_HEIGHT && logicalCanvasX >= currentGridRowHeaderWidth) {
-      // Convert canvas-relative x to content-relative x for findColumnByOffset
-      // scrollLeft is logical, clientX - rect.left is physical pixels on canvas
-      const logicalMouseXOnCanvas = x / currentZoom;
-      const contentRelativeX = logicalMouseXOnCanvas + this.grid['container'].scrollLeft - currentGridRowHeaderWidth;
+    if (logicalCanvasY < COL_HEADER_HEIGHT && logicalCanvasX >= logicalRowHeaderWidth) {
+      // Convert logical canvas X to content-relative logical X for findColumnByOffset
+      const contentRelativeLogicalX = logicalCanvasX + this.grid['container'].scrollLeft - logicalRowHeaderWidth;
+      const { col, within } = this.grid['findColumnByOffset'](contentRelativeLogicalX); // 'within' is logical
 
-      const { col, within } = this.grid['findColumnByOffset'](contentRelativeX); // within is logical
-
-      // getWidth is logical. effectiveResizeGutter should also be treated as logical here for comparison.
-      return within >= this.grid['colMgr'].getWidth(col) - (effectiveResizeGutter / currentZoom) &&
-             within <= this.grid['colMgr'].getWidth(col) + (effectiveResizeGutter / (2 * currentZoom));
+      // Compare logical 'within' against logical column width and logical gutter
+      // Check if 'within' is near the right edge of the column
+      return within >= this.grid['colMgr'].getWidth(col) - logicalGutter &&
+             within <= this.grid['colMgr'].getWidth(col) + logicalGutter / 2; // Allow some tolerance past the line
     }
     return false;
   }

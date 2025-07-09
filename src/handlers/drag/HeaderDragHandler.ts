@@ -67,29 +67,27 @@ export class HeaderDragHandler implements EventHandler {
   }
 
   hitTest(x: number, y: number): boolean { // x, y are canvas offsetX, offsetY
-    const COL_HEADER_HEIGHT = 40; // Logical height
-    const MOUSE_RESIZE_GUTTER = 5; // Logical gutter for mouse
-    // For touch, ColumnResizeHandler uses a larger gutter. We want to make sure HeaderDragHandler
-    // doesn't activate if the touch is within that larger touch gutter for resizing.
-    const TOUCH_RESIZE_GUTTER = 20;
+    const LOGICAL_COL_HEADER_HEIGHT = 40;
+    const MOUSE_RESIZE_GUTTER_PX = 5;  // Physical gutter for mouse
+    const TOUCH_RESIZE_GUTTER_PX = 20; // Physical gutter for touch
 
     const currentZoom = this.grid.getZoomLevel();
     const logicalCanvasX = x / currentZoom;
     const logicalCanvasY = y / currentZoom;
 
-    const currentGridRowHeaderWidth = this.grid.getRowHeaderWidth(); // Logical width
+    const logicalRowHeaderWidth = this.grid.getRowHeaderWidth();
 
-    if (logicalCanvasY < COL_HEADER_HEIGHT && logicalCanvasX >= currentGridRowHeaderWidth) {
-      // We need contentRelativeX to use findColumnByOffset
-      const contentRelativeX = logicalCanvasX + this.grid['container'].scrollLeft - currentGridRowHeaderWidth;
-      const { col, within } = this.grid['findColumnByOffset'](contentRelativeX); // 'within' is logical
+    if (logicalCanvasY < LOGICAL_COL_HEADER_HEIGHT && logicalCanvasX >= logicalRowHeaderWidth) {
+      const contentRelativeLogicalX = logicalCanvasX + this.grid['container'].scrollLeft - logicalRowHeaderWidth;
+      const { col, within } = this.grid['findColumnByOffset'](contentRelativeLogicalX); // 'within' is logical
 
-      // Determine the effective resize gutter that ColumnResizeHandler would use
-      const effectiveResizeGutterForColumnHandler = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
-      const logicalEffectiveResizeGutter = effectiveResizeGutterForColumnHandler / currentZoom;
+      // Determine the logical size of the gutter ColumnResizeHandler would use
+      const physicalGutterForResize = pointerType === 'touch' ? TOUCH_RESIZE_GUTTER_PX : MOUSE_RESIZE_GUTTER_PX;
+      const logicalGutterForResize = physicalGutterForResize / currentZoom;
 
-      // This handler should activate if NOT in the resize gutter zone ColumnResizeHandler would claim.
-      if (within < this.grid['colMgr'].getWidth(col) - logicalEffectiveResizeGutter) {
+      // This handler should activate if NOT in the resize gutter zone.
+      // ColumnResizeHandler has priority, so this check ensures we don't interfere if it's a resize action.
+      if (within < this.grid['colMgr'].getWidth(col) - logicalGutterForResize) {
         return true;
       }
     }

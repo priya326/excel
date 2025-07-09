@@ -33,11 +33,15 @@ export abstract class HeaderResizeHandlerBase implements EventHandler {
     const idx = this.getIndex(evt);
     const within = this.getWithin(contentMouseX, contentMouseY);
 
-    const MOUSE_RESIZE_GUTTER = this.getResizeGutter(); // Default gutter from derived class (e.g., 5)
-    const TOUCH_RESIZE_GUTTER = 20;
-    const effectiveResizeGutter = (evt as PointerEvent).pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+    const MOUSE_RESIZE_GUTTER_PX = this.getResizeGutter(); // Default physical gutter from derived class (e.g., 5)
+    const TOUCH_RESIZE_GUTTER_PX = 20;
+    const physicalEffectiveResizeGutter = (evt as PointerEvent).pointerType === 'touch' ? TOUCH_RESIZE_GUTTER_PX : MOUSE_RESIZE_GUTTER_PX;
+    const currentZoom = this.grid.getZoomLevel();
+    const logicalEffectiveResizeGutter = physicalEffectiveResizeGutter / currentZoom;
 
-    if (within >= this.getManager().getSize(idx) - effectiveResizeGutter && within <= this.getManager().getSize(idx) + effectiveResizeGutter / 2) { // Check on both sides of the line
+    // 'within' and 'getSize(idx)' are logical. Compare with logical gutter.
+    if (within >= this.getManager().getSize(idx) - logicalEffectiveResizeGutter &&
+        within <= this.getManager().getSize(idx) + logicalEffectiveResizeGutter / 2) {
       this.resizingIdx = idx;
       this.dragStartCoord = this.getDragStartCoord(evt);
       this.originalSize = this.getManager().getSize(idx);
@@ -62,11 +66,15 @@ export abstract class HeaderResizeHandlerBase implements EventHandler {
     const idx = this.getIndex(evt);
     const within = this.getWithin(contentMouseX, contentMouseY);
 
-    const MOUSE_RESIZE_GUTTER = this.getResizeGutter(); // Default gutter from derived class
-    const TOUCH_RESIZE_GUTTER = 20;
-    const effectiveResizeGutter = (evt as PointerEvent).pointerType === 'touch' ? TOUCH_RESIZE_GUTTER : MOUSE_RESIZE_GUTTER;
+    const MOUSE_RESIZE_GUTTER_PX = this.getResizeGutter(); // Default physical gutter
+    const TOUCH_RESIZE_GUTTER_PX = 20;
+    const physicalEffectiveResizeGutter = (evt as PointerEvent).pointerType === 'touch' ? TOUCH_RESIZE_GUTTER_PX : MOUSE_RESIZE_GUTTER_PX;
+    const currentZoom = this.grid.getZoomLevel();
+    const logicalEffectiveResizeGutter = physicalEffectiveResizeGutter / currentZoom;
 
-    if (within >= this.getManager().getSize(idx) - effectiveResizeGutter && within <= this.getManager().getSize(idx) + effectiveResizeGutter / 2) {
+    // 'within' and 'getSize(idx)' are logical. Compare with logical gutter.
+    if (within >= this.getManager().getSize(idx) - logicalEffectiveResizeGutter &&
+        within <= this.getManager().getSize(idx) + logicalEffectiveResizeGutter / 2) {
       this.grid['canvas'].style.cursor = this.getCursor();
     }
   }
