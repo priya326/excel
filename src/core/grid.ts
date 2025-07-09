@@ -216,7 +216,7 @@ export class Grid {
     const virtualWidth = this.colMgr.getTotalWidth();
     filler.style.height = virtualHeight + "px";
     filler.style.width = virtualWidth + "px";
-    this.canvas.style.cursor ="cell"
+    this.canvas.style.cursor = "cell"
     this.columnResizeHandler = new ColumnResizeHandler(this);
     this.rowResizeHandler = new RowResizeHandler(this);
     this.headerDragHandler = new HeaderDragHandler(this);
@@ -300,7 +300,7 @@ export class Grid {
     undoButton.addEventListener("click", this.onUndo.bind(this));
     const redoButton = document.getElementById("redoBtn")!;
     redoButton.addEventListener("click", this.onRedo.bind(this));
-    this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this) )
+    this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this))
 
     // Search functionality
     const searchInput = document.getElementById(
@@ -498,7 +498,7 @@ export class Grid {
   public shiftCellsRight(insertAt: number): void {
     // Only process rows that have data
     for (const rowMap of this.cells.values()) {
-     
+
       const cols = Array.from(rowMap.keys()).filter((col) => col >= insertAt);
       cols.sort((a, b) => b - a);
       for (const col of cols) {
@@ -1180,7 +1180,7 @@ export class Grid {
       this.scheduleRender();
       return;
     }
-     if (
+    if (
       e.ctrlKey &&
       e.shiftKey &&
       (e.key === "ArrowLeft" || e.key === "ArrowRight")
@@ -1322,14 +1322,14 @@ export class Grid {
       // Determine new focus cell
       let focusRow =
         this.selMgr.isDragging() &&
-        this.selMgr["dragEnd"] &&
-        typeof this.selMgr["dragEnd"].row === "number"
+          this.selMgr["dragEnd"] &&
+          typeof this.selMgr["dragEnd"].row === "number"
           ? this.selMgr["dragEnd"].row
           : anchorRow;
       let focusCol =
         this.selMgr.isDragging() &&
-        this.selMgr["dragEnd"] &&
-        typeof this.selMgr["dragEnd"].col === "number"
+          this.selMgr["dragEnd"] &&
+          typeof this.selMgr["dragEnd"].col === "number"
           ? this.selMgr["dragEnd"].col
           : anchorCol;
       // Ensure focusRow and focusCol are numbers
@@ -2690,7 +2690,7 @@ export class Grid {
    * Computes the selection stats.
    */
   private computeSelectionStats(): void {
-    
+
 
     // Whole row selection
     const selectedRows = this.selMgr.getSelectedRows();
