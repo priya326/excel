@@ -39,7 +39,8 @@ export class RowResizeHandler extends HeaderResizeHandlerBase {
   protected getMinSize(): number { return 20; }
   protected getCursor(): string { return 'row-resize'; }
   protected getDragDelta(evt: MouseEvent): number {
-    return evt.clientY - this.dragStartCoord;
+    const { y: currentContentY } = this.grid['getMousePos'](evt);
+    return currentContentY - this.dragStartCoord;
   }
   protected setSize(idx: number, size: number): void {
     this.grid['rowMgr'].setHeight(idx, size);
@@ -48,6 +49,8 @@ export class RowResizeHandler extends HeaderResizeHandlerBase {
     this.grid['updateEditorPosition']();
   }
   protected getDragStartCoord(evt: MouseEvent): number {
-    return evt.clientY;
+    // Use content-relative Y coordinate for starting drag
+    const { y } = this.grid['getMousePos'](evt);
+    return y;
   }
-} 
+}
