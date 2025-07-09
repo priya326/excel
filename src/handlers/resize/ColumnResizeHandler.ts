@@ -16,17 +16,22 @@ export class ColumnResizeHandler extends HeaderResizeHandlerBase {
   }
 
   protected getIndex(evt: MouseEvent): number {
-    const { x } = this.grid['getMousePos'](evt);
-    const { col } = this.grid['findColumnByOffset'](x - 40);
+    const { x: contentMouseX } = this.grid['getMousePos'](evt);
+    // findColumnByOffset expects offset from the start of the column area (after row headers)
+    const rowHeaderAreaWidth = (this.grid as any).rowHeaderWidth;
+    const { col } = this.grid['findColumnByOffset'](contentMouseX - rowHeaderAreaWidth);
     return col;
   }
 
-  protected getWithin(x: number, y: number): number {
-    const { col, within } = this.grid['findColumnByOffset'](x - 40);
+  protected getWithin(contentMouseX: number, contentMouseY: number): number {
+    // contentMouseX is from getMousePos, relative to scrollable content origin.
+    // findColumnByOffset expects offset from the start of the column area.
+    const rowHeaderAreaWidth = (this.grid as any).rowHeaderWidth;
+    const { col, within } = this.grid['findColumnByOffset'](contentMouseX - rowHeaderAreaWidth);
     return within;
   }
 
-  protected getHeaderSize(): number { return 40; }
+  protected getHeaderSize(): number { return 40; } // This is the height of the column header bar
   protected getResizeGutter(): number { return 5; }
   protected getManager(): any { return {
     getSize: (col: number) => this.grid['colMgr'].getWidth(col)

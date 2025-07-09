@@ -27,11 +27,16 @@ export abstract class HeaderResizeHandlerBase implements EventHandler {
   protected abstract updateEditorPosition(): void;
 
   onPointerDown(evt: MouseEvent): void {
-    const idx = this.getIndex(evt);
-    const within = this.getWithin(evt.clientX, evt.clientY);
+    // Get content-relative mouse position once
+    const { x: contentMouseX, y: contentMouseY } = this.grid['getMousePos'](evt);
+
+    const idx = this.getIndex(evt); // getIndex in derived classes should use getMousePos or be adjusted
+    // Pass content-relative coordinates to getWithin
+    const within = this.getWithin(contentMouseX, contentMouseY);
+
     if (within >= this.getManager().getSize(idx) - this.getResizeGutter()) {
       this.resizingIdx = idx;
-      this.dragStartCoord = this.getDragStartCoord(evt);
+      this.dragStartCoord = this.getDragStartCoord(evt); // This already uses getMousePos via derived classes after previous fix
       this.originalSize = this.getManager().getSize(idx);
       this.isResizing = true;
       const selected = this.getSelected();

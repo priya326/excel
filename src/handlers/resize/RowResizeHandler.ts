@@ -21,8 +21,10 @@ export class RowResizeHandler extends HeaderResizeHandlerBase {
     return row;
   }
 
-  protected getWithin(x: number, y: number): number {
-    const { row, within } = this.grid['findRowByOffset'](y - 40);
+  protected getWithin(contentMouseX: number, contentMouseY: number): number {
+    // contentMouseY is already relative to the grid's content area (after headers)
+    // We need to subtract the header size before passing to findRowByOffset.
+    const { row, within } = this.grid['findRowByOffset'](contentMouseY - this.getHeaderSize());
     return within;
   }
 
